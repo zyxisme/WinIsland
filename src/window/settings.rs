@@ -14,6 +14,7 @@ use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::window::{Window, WindowId};
 const SETTINGS_W: f32 = 400.0;
 const SETTINGS_H: f32 = 550.0;
+use crate::utils::icon::get_app_icon;
 pub struct SettingsApp {
     window: Option<Arc<Window>>,
     surface: Option<Surface<Arc<Window>, Arc<Window>>>,
@@ -228,7 +229,11 @@ impl SettingsApp {
 }
 impl ApplicationHandler for SettingsApp {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        let attrs = Window::default_attributes().with_title("Settings").with_inner_size(LogicalSize::new(SETTINGS_W as f64, SETTINGS_H as f64)).with_resizable(false);
+        let attrs = Window::default_attributes()
+            .with_title("Settings")
+            .with_inner_size(LogicalSize::new(SETTINGS_W as f64, SETTINGS_H as f64))
+            .with_resizable(false)
+            .with_window_icon(get_app_icon());
         let window = Arc::new(event_loop.create_window(attrs).unwrap());
         self.window = Some(window.clone());
         let context = Context::new(window.clone()).unwrap();

@@ -4,6 +4,9 @@ export default defineConfig({
   base: '/WinIsland/',
   title: "WinIsland",
   description: "A sleek, functional dynamic island for Windows",
+  head: [
+    ['link', { rel: 'icon', href: '/WinIsland/icon.png' }]
+  ],
   themeConfig: {
     nav: [
       { text: 'Home', link: '/' },
@@ -30,7 +33,7 @@ export default defineConfig({
     ],
     footer: {
       message: 'Released under the MIT License.',
-      copyright: 'Copyright æ¼?2026-present WinIsland'
+      copyright: 'Copyright ï¿½?2026-present WinIsland'
     }
   }
 })

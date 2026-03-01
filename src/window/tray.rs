@@ -1,12 +1,14 @@
 use crate::core::config::WINDOW_TITLE;
 use tray_icon::menu::{Menu, MenuItem};
 use tray_icon::{Icon, TrayIcon, TrayIconBuilder};
+
 pub struct TrayManager {
     _tray: TrayIcon,
     toggle_item: MenuItem,
     settings_item: MenuItem,
     quit_item: MenuItem,
 }
+
 impl TrayManager {
     pub fn new() -> Self {
         let menu = Menu::new();
@@ -16,10 +18,11 @@ impl TrayManager {
         let _ = menu.append(&toggle_item);
         let _ = menu.append(&settings_item);
         let _ = menu.append(&quit_item);
+        
         let tray = TrayIconBuilder::new()
             .with_tooltip(WINDOW_TITLE)
             .with_menu(Box::new(menu))
-            .with_icon(Self::create_white_icon())
+            .with_icon(Self::load_tray_icon())
             .build()
             .unwrap();
         Self {
@@ -29,6 +32,7 @@ impl TrayManager {
             quit_item,
         }
     }
+
     pub fn update_item_text(&self, visible: bool) {
         if visible {
             self.toggle_item.set_text("Hide");
@@ -36,9 +40,14 @@ impl TrayManager {
             self.toggle_item.set_text("Show");
         }
     }
-    fn create_white_icon() -> Icon {
-        let rgba = vec![255u8; 32 * 32 * 4];
-        Icon::from_rgba(rgba, 32, 32).unwrap()
+
+    fn load_tray_icon() -> Icon {
+        let icon_bytes = include_bytes!("../../resources/icon.png");
+        let image = image::load_from_memory(icon_bytes).expect("Failed to load icon.png from resources");
+        let rgba = image.to_rgba8();
+        let (width, height) = rgba.dimensions();
+        let rgba_vec = rgba.into_raw();
+        Icon::from_rgba(rgba_vec, width, height).expect("Failed to create tray icon from RGBA data")
     }
 }
 impl TrayAction {

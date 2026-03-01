@@ -6,7 +6,7 @@ hero:
   text: "Sleek. Dynamic. Windows."
   tagline: "A functional dynamic island for your Windows desktop, built with Rust."
   image:
-    src: /logo.png
+    src: /icon.png
     alt: WinIsland
   actions:
     - theme: brand

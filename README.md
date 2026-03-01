@@ -1,4 +1,6 @@
-## WinIsland
+## <img src="resources/info-en.png" height="32" vertical-align="middle"> WinIsland
+
+English | [简体中文](./README-zh.md)
 > [!WARNING]
 > IT'S WIP, Mistakes may occur sometimes
 

@@ -17,6 +17,7 @@ use crate::utils::physics::Spring;
 use crate::core::smtc::SmtcListener;
 use crate::core::audio::AudioProcessor;
 use crate::window::tray::{TrayAction, TrayManager};
+use crate::utils::icon::get_app_icon;
 pub struct App {
     window: Option<Arc<Window>>,
     surface: Option<Surface<Arc<Window>, Arc<Window>>>,
@@ -88,7 +89,8 @@ impl ApplicationHandler for App {
                 .with_transparent(true)
                 .with_decorations(false)
                 .with_window_level(WindowLevel::AlwaysOnTop)
-                .with_skip_taskbar(true);
+                .with_skip_taskbar(true)
+                .with_window_icon(get_app_icon());
             let window = Arc::new(event_loop.create_window(attrs).unwrap());
             self.window = Some(window.clone());
             if let Some(monitor) = window.current_monitor() {
