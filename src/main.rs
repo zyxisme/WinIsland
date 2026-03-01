@@ -3,6 +3,8 @@
 mod core;
 mod window;
 mod utils;
+mod icons;
+mod ui;
 
 use crate::window::app::App;
 use std::env;
@@ -19,7 +21,6 @@ fn main() {
         let config = crate::core::persistence::load_config();
         crate::window::settings::run_settings(config);
     } else {
-        // Single Instance Check
         unsafe {
             let _ = CreateMutexW(None, true, w!("Global\\WinIsland_SingleInstance_Mutex"));
             if GetLastError() == ERROR_ALREADY_EXISTS {

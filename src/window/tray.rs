@@ -1,5 +1,5 @@
 use crate::core::config::WINDOW_TITLE;
-use tray_icon::menu::{Menu, MenuEvent, MenuItem};
+use tray_icon::menu::{Menu, MenuItem};
 use tray_icon::{Icon, TrayIcon, TrayIconBuilder};
 
 pub struct TrayManager {
@@ -34,19 +34,6 @@ impl TrayManager {
         }
     }
 
-    pub fn handle_events(&self) -> Option<TrayAction> {
-        if let Ok(event) = MenuEvent::receiver().try_recv() {
-            if event.id == self.toggle_item.id() {
-                return Some(TrayAction::ToggleVisibility);
-            } else if event.id == self.settings_item.id() {
-                return Some(TrayAction::OpenSettings);
-            } else if event.id == self.quit_item.id() {
-                return Some(TrayAction::Exit);
-            }
-        }
-        None
-    }
-
     pub fn update_item_text(&self, visible: bool) {
         if visible {
             self.toggle_item.set_text("Hide");
@@ -56,7 +43,7 @@ impl TrayManager {
     }
 
     fn create_white_icon() -> Icon {
-        let mut rgba = vec![255u8; 32 * 32 * 4];
+        let rgba = vec![255u8; 32 * 32 * 4];
         Icon::from_rgba(rgba, 32, 32).unwrap()
     }
 }

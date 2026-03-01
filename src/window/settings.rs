@@ -4,6 +4,8 @@ use skia_safe::{surfaces, Color, Font, FontMgr, FontStyle, Paint, Rect};
 use softbuffer::{Context, Surface};
 use std::sync::Arc;
 use std::time::Duration;
+use windows::core::w;
+use windows::Win32::System::Threading::{OpenMutexW, MUTEX_ALL_ACCESS};
 use winit::application::ApplicationHandler;
 use winit::dpi::LogicalSize;
 use winit::event::{ElementState, MouseButton, WindowEvent};
@@ -11,7 +13,7 @@ use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::window::{Window, WindowId};
 
 const SETTINGS_W: f32 = 400.0;
-const SETTINGS_H: f32 = 550.0; // Increased height for new toggle
+const SETTINGS_H: f32 = 550.0;
 
 pub struct SettingsApp {
     window: Option<Arc<Window>>,
@@ -22,6 +24,7 @@ pub struct SettingsApp {
     blur_switch_pos: f32,
     logical_mouse_pos: (f32, f32),
     font_mgr: FontMgr,
+    frame_count: u64,
 }
 
 impl SettingsApp {
@@ -37,6 +40,7 @@ impl SettingsApp {
             blur_switch_pos: initial_blur,
             logical_mouse_pos: (0.0, 0.0),
             font_mgr: FontMgr::new(),
+            frame_count: 0,
         }
     }
 
@@ -61,10 +65,11 @@ impl SettingsApp {
         
         canvas.scale((scale, scale));
 
-        self.draw_tabs(canvas);
+        let (config, active_tab, switch_pos, blur_pos) = (self.config.clone(), self.active_tab, self.border_switch_pos, self.blur_switch_pos);
+        self.draw_tabs(canvas, active_tab);
 
-        if self.active_tab == 0 {
-            self.draw_general(canvas);
+        if active_tab == 0 {
+            self.draw_general(canvas, &config, switch_pos, blur_pos);
         } else {
             self.draw_about(canvas);
         }
@@ -84,7 +89,7 @@ impl SettingsApp {
         }
     }
 
-    fn draw_tabs(&self, canvas: &skia_safe::Canvas) {
+    fn draw_tabs(&self, canvas: &skia_safe::Canvas, active_tab: usize) {
         let font = self.get_font(14.0, true);
         let mut paint = Paint::default();
         paint.set_anti_alias(true);
@@ -96,7 +101,7 @@ impl SettingsApp {
             let bx = center_x - 80.0 + (i as f32 * 80.0);
             let rect = Rect::from_xywh(bx, 20.0, 75.0, 32.0);
             
-            if self.active_tab == i {
+            if active_tab == i {
                 paint.set_color(Color::from_rgb(0, 122, 255));
                 canvas.draw_round_rect(rect, 8.0, 8.0, &paint);
                 paint.set_color(Color::WHITE);
@@ -108,17 +113,17 @@ impl SettingsApp {
         }
     }
 
-    fn draw_general(&self, canvas: &skia_safe::Canvas) {
+    fn draw_general(&self, canvas: &skia_safe::Canvas, config: &AppConfig, switch_pos: f32, blur_pos: f32) {
         let font = self.get_font(14.0, false);
         let mut paint = Paint::default();
         paint.set_anti_alias(true);
 
         let items = [
-            ("Global Scale", format!("{:.2}", self.config.global_scale)),
-            ("Base Width", self.config.base_width.to_string()),
-            ("Base Height", self.config.base_height.to_string()),
-            ("Expanded Width", self.config.expanded_width.to_string()),
-            ("Expanded Height", self.config.expanded_height.to_string()),
+            ("Global Scale", format!("{:.2}", config.global_scale)),
+            ("Base Width", config.base_width.to_string()),
+            ("Base Height", config.base_height.to_string()),
+            ("Expanded Width", config.expanded_width.to_string()),
+            ("Expanded Height", config.expanded_height.to_string()),
         ];
 
         let start_y = 90.0;
@@ -137,12 +142,12 @@ impl SettingsApp {
         let sw_border_y = start_y + (items.len() as f32 * 50.0) + 10.0;
         paint.set_color(Color::from_rgb(50, 50, 50));
         canvas.draw_str("Adaptive Border", (30.0, sw_border_y + 18.0), &font, &paint);
-        self.draw_switch(canvas, 326.0, sw_border_y, self.border_switch_pos);
+        self.draw_switch(canvas, 326.0, sw_border_y, switch_pos);
 
         let sw_blur_y = sw_border_y + 45.0;
         paint.set_color(Color::from_rgb(50, 50, 50));
         canvas.draw_str("Motion Blur", (30.0, sw_blur_y + 18.0), &font, &paint);
-        self.draw_switch(canvas, 326.0, sw_blur_y, self.blur_switch_pos);
+        self.draw_switch(canvas, 326.0, sw_blur_y, blur_pos);
 
         paint.set_color(Color::from_rgb(255, 59, 48));
         canvas.draw_str("Reset to Defaults", (center_text_x(SETTINGS_W, "Reset to Defaults", &font), SETTINGS_H - 60.0), &font, &paint);
@@ -300,9 +305,9 @@ impl ApplicationHandler for SettingsApp {
         self.surface = Some(surface);
     }
 
-    fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
+    fn window_event(&mut self, _event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
         match event {
-            WindowEvent::CloseRequested => event_loop.exit(),
+            WindowEvent::CloseRequested => _event_loop.exit(),
             WindowEvent::CursorMoved { position, .. } => {
                 if let Some(win) = &self.window {
                     let scale = win.scale_factor() as f32;
@@ -327,6 +332,19 @@ impl ApplicationHandler for SettingsApp {
 
     fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
         if let Some(win) = &self.window {
+            self.frame_count += 1;
+            if self.frame_count % 60 == 0 {
+                unsafe {
+                    let mutex_name = w!("Global\\WinIsland_SingleInstance_Mutex");
+                    let handle = OpenMutexW(MUTEX_ALL_ACCESS, false, mutex_name);
+                    if handle.is_err() {
+                        _event_loop.exit();
+                        return;
+                    }
+                    let _ = windows::Win32::Foundation::CloseHandle(handle.unwrap());
+                }
+            }
+
             let mut needs_redraw = false;
             
             let target_border = if self.config.adaptive_border { 1.0 } else { 0.0 };

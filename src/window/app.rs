@@ -25,6 +25,7 @@ pub struct App {
 
     config: AppConfig,
     expanded: bool,
+    tools_view: bool,
     visible: bool,
     border_weights: [f32; 4],
     target_border_weights: [f32; 4],
@@ -32,6 +33,7 @@ pub struct App {
     spring_w: Spring,
     spring_h: Spring,
     spring_r: Spring,
+    spring_view: Spring,
 
     os_w: u32,
     os_h: u32,
@@ -51,12 +53,14 @@ impl Default for App {
             tray: None,
             config: config.clone(),
             expanded: false,
+            tools_view: false,
             visible: true,
             border_weights: [0.0; 4],
             target_border_weights: [0.0; 4],
             spring_w: Spring::new(config.base_width * config.global_scale),
             spring_h: Spring::new(config.base_height * config.global_scale),
             spring_r: Spring::new((config.base_height * config.global_scale) / 2.0),
+            spring_view: Spring::new(0.0),
             os_w: 0,
             os_h: 0,
             win_x: 0,
@@ -139,8 +143,48 @@ impl ApplicationHandler for App {
                             self.spring_h.value as f64,
                         ) {
                             if self.expanded {
+                                let center_y = island_y + self.spring_h.value as f64 / 2.0;
+                                if !self.tools_view {
+                                    
+                                    let btn_x = offset_x + self.spring_w.value as f64 - 20.0;
+                                    let dist_sq = (rel_x as f64 - btn_x).powi(2) + (rel_y as f64 - center_y).powi(2);
+                                    if dist_sq <= 25.0f64.powi(2) {
+                                        self.tools_view = true;
+                                        self.spring_view.velocity *= 0.2;
+                                        return;
+                                    }
+                                } else {
+                                    
+                                    let btn_x = offset_x + 20.0;
+                                    let dist_sq = (rel_x as f64 - btn_x).powi(2) + (rel_y as f64 - center_y).powi(2);
+                                    if dist_sq <= 25.0f64.powi(2) {
+                                        self.tools_view = false;
+                                        self.spring_view.velocity *= 0.2;
+                                        return;
+                                    }
+                                    
+                                    let grid_w = self.spring_w.value - 80.0;
+                                    let grid_h = self.spring_h.value - 40.0;
+                                    let x_step = (grid_w / 5.0) as f64;
+                                    let y_step = (grid_h / 3.0) as f64;
+                                    let start_x = offset_x + 40.0 + x_step / 2.0;
+                                    let start_y = island_y + 20.0 + y_step / 2.0;
+                                    
+                                    let settings_cx = start_x + (0.0 * x_step);
+                                    let settings_cy = start_y + (0.0 * y_step);
+                                    
+                                    let dist_sq = (rel_x as f64 - settings_cx as f64).powi(2) + (rel_y as f64 - settings_cy as f64).powi(2);
+                                    if dist_sq <= 28.0f64.powi(2) {
+                                        let _ = std::process::Command::new(std::env::current_exe().unwrap())
+                                            .arg("--settings")
+                                            .spawn();
+                                        return;
+                                    }
+                                }
+
                                 if (rel_y as f64) < island_y + 40.0 {
                                     self.expanded = false;
+                                    self.tools_view = false;
                                     self.spring_w.velocity *= 0.2;
                                     self.spring_h.velocity *= 0.2;
                                     self.spring_r.velocity *= 0.2;
@@ -156,10 +200,20 @@ impl ApplicationHandler for App {
                     WindowEvent::RedrawRequested => {
                         if let Some(surface) = self.surface.as_mut() {
                             let sigmas = if self.config.motion_blur {
-                                calculate_blur_sigmas(self.spring_w.velocity, self.spring_h.velocity)
+                                calculate_blur_sigmas(
+                                    self.spring_w.velocity, 
+                                    self.spring_h.velocity, 
+                                    self.spring_view.velocity,
+                                    self.spring_w.value
+                                )
                             } else {
                                 (0.0, 0.0)
                             };
+                            
+                            let total_w = (self.config.expanded_width - self.config.base_width).abs().max(1.0) * self.config.global_scale;
+                            let dist_w = (self.spring_w.value - self.config.base_width * self.config.global_scale).abs();
+                            let progress = (dist_w / total_w).clamp(0.0, 1.0);
+
                             draw_island(
                                 surface,
                                 self.spring_w.value,
@@ -169,6 +223,8 @@ impl ApplicationHandler for App {
                                 self.os_h,
                                 self.border_weights,
                                 sigmas,
+                                progress,
+                                self.spring_view.value,
                             );
                         }
                     }
@@ -288,6 +344,8 @@ impl ApplicationHandler for App {
                 (self.config.base_height * self.config.global_scale) / 2.0
             };
 
+            let target_view = if self.tools_view { 1.0 } else { 0.0 };
+
             let total_w = (self.config.expanded_width - self.config.base_width)
                 .abs()
                 .max(1.0) * self.config.global_scale;
@@ -304,10 +362,12 @@ impl ApplicationHandler for App {
             self.spring_w.update(target_w, stiffness, damping);
             self.spring_h.update(target_h, stiffness, damping);
             self.spring_r.update(target_r, stiffness, damping);
+            self.spring_view.update(target_view, 0.12, 0.58);
 
             if self.spring_w.velocity.abs() > 0.01
                 || self.spring_h.velocity.abs() > 0.01
                 || self.spring_r.velocity.abs() > 0.01
+                || self.spring_view.velocity.abs() > 0.001
             {
                 window.request_redraw();
             }
