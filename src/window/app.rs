@@ -410,9 +410,16 @@ impl ApplicationHandler for App {
             }
 
             let target_base_w = if music_active && !self.expanded {
-                if self.config.show_lyrics && !self.current_lyric_text.is_empty() {
+                let has_visible_lyrics = self.config.show_lyrics && (!self.current_lyric_text.is_empty() || (!self.old_lyric_text.is_empty() && self.lyric_transition < 1.0));
+                
+                if has_visible_lyrics {
                     let mut text_w = 0.0;
-                    for c in self.current_lyric_text.chars() {
+                    let display_text = if !self.current_lyric_text.is_empty() {
+                        &self.current_lyric_text
+                    } else {
+                        &self.old_lyric_text
+                    };
+                    for c in display_text.chars() {
                         if c.is_ascii() {
                             text_w += 7.5;
                         } else {
