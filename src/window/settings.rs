@@ -126,7 +126,7 @@ impl SettingsApp {
             self.draw_general(canvas);
             canvas.restore();
 
-            let content_h = if self.config.auto_hide { 850.0 } else { 800.0 };
+            let content_h = if self.config.auto_hide { 900.0 } else { 850.0 };
             let view_h = SETTINGS_H - 70.0;
             if content_h > view_h {
                 let bar_h = (view_h / content_h) * view_h;
@@ -239,7 +239,18 @@ impl SettingsApp {
         canvas.draw_str(&tr("check_updates"), (35.0, update_y + 21.0), &font, &paint);
         self.draw_switch(canvas, 326.0, update_y + 3.0, self.update_switch_pos);
 
-        let lang_y = update_y + 50.0;
+        let interval_y = update_y + 50.0;
+        paint.set_color(COLOR_CARD);
+        canvas.draw_round_rect(Rect::from_xywh(20.0, interval_y - 5.0, SETTINGS_W - 40.0, 42.0), 10.0, 10.0, &paint);
+        paint.set_color(if self.config.check_for_updates { COLOR_TEXT_PRI } else { COLOR_TEXT_SEC });
+        canvas.draw_str(&tr("update_interval"), (35.0, interval_y + 21.0), &font, &paint);
+        let interval_str = format!("{:.0}", self.config.update_check_interval);
+        self.draw_button(canvas, 270.0, interval_y + 2.0, "-");
+        let (_, rect) = font.measure_str(&interval_str, None);
+        canvas.draw_str(&interval_str, (325.0 - rect.width() / 2.0, interval_y + 21.0), &font, &paint);
+        self.draw_button(canvas, 345.0, interval_y + 2.0, "+");
+
+        let lang_y = interval_y + 50.0;
         paint.set_color(COLOR_CARD);
         canvas.draw_round_rect(Rect::from_xywh(20.0, lang_y - 5.0, SETTINGS_W - 40.0, 42.0), 10.0, 10.0, &paint);
         paint.set_color(COLOR_TEXT_PRI);
@@ -409,7 +420,12 @@ impl SettingsApp {
                 self.config.check_for_updates = !self.config.check_for_updates;
                 changed = true;
             }
-            let lang_y = update_y + 50.0;
+            let interval_y = update_y + 50.0;
+            if self.config.check_for_updates {
+                self.check_btn(lmx, content_my, 270.0, interval_y + 2.0, |c| c.update_check_interval = (c.update_check_interval - 1.0).max(1.0), &mut changed);
+                self.check_btn(lmx, content_my, 345.0, interval_y + 2.0, |c| c.update_check_interval = (c.update_check_interval + 1.0).min(24.0), &mut changed);
+            }
+            let lang_y = interval_y + 50.0;
             if Self::in_rect(lmx, content_my, 300.0, lang_y + 3.0, 75.0, 26.0) {
                 self.config.language = if current_lang() == "zh" { "en".to_string() } else { "zh".to_string() };
                 set_lang(&self.config.language);
@@ -420,7 +436,7 @@ impl SettingsApp {
                 self.check_btn(lmx, content_my, 270.0, delay_y + 2.0, |c| c.auto_hide_delay = (c.auto_hide_delay - 1.0).max(1.0), &mut changed);
                 self.check_btn(lmx, content_my, 345.0, delay_y + 2.0, |c| c.auto_hide_delay = (c.auto_hide_delay + 1.0).min(60.0), &mut changed);
             }
-            let reset_y = if self.config.auto_hide { 810.0 } else { 760.0 };
+            let reset_y = if self.config.auto_hide { 860.0 } else { 810.0 };
             if lmx >= cx - 100.0 && lmx <= cx + 100.0 && content_my >= reset_y - 24.0 && content_my <= reset_y + 12.0 {
                 self.config = AppConfig::default();
                 set_lang(if self.config.language == "auto" { "en" } else { &self.config.language });
@@ -431,7 +447,7 @@ impl SettingsApp {
             let _ = open::that(APP_HOMEPAGE);
         }
         if changed {
-            let content_h = if self.config.auto_hide { 850.0 } else { 800.0 };
+            let content_h = if self.config.auto_hide { 900.0 } else { 850.0 };
             let max_scroll = (content_h - (SETTINGS_H - 70.0)).max(0.0);
             self.target_scroll_y = self.target_scroll_y.clamp(0.0, max_scroll);
             self.scroll_y = self.scroll_y.clamp(0.0, max_scroll);
@@ -500,7 +516,7 @@ impl ApplicationHandler for SettingsApp {
                         winit::event::MouseScrollDelta::PixelDelta(pos) => pos.y as f32,
                     };
                     self.target_scroll_y -= diff;
-                    let content_h = if self.config.auto_hide { 850.0 } else { 800.0 };
+                    let content_h = if self.config.auto_hide { 900.0 } else { 850.0 };
                     let max_scroll = (content_h - (SETTINGS_H - 70.0)).max(0.0);
                     self.target_scroll_y = self.target_scroll_y.clamp(0.0, max_scroll);
                     if let Some(win) = &self.window { win.request_redraw(); }
@@ -530,7 +546,7 @@ impl ApplicationHandler for SettingsApp {
             if (tas - self.autostart_switch_pos).abs() > 0.01 { self.autostart_switch_pos += (tas - self.autostart_switch_pos) * 0.2; redraw = true; }
             let tcu = if self.config.check_for_updates { 1.0 } else { 0.0 };
             if (tcu - self.update_switch_pos).abs() > 0.01 { self.update_switch_pos += (tcu - self.update_switch_pos) * 0.2; redraw = true; }
-            let content_h = if self.config.auto_hide { 850.0 } else { 800.0 };
+            let content_h = if self.config.auto_hide { 900.0 } else { 850.0 };
             let max_scroll = (content_h - (SETTINGS_H - 70.0)).max(0.0);
             self.target_scroll_y = self.target_scroll_y.clamp(0.0, max_scroll);
             if (self.target_scroll_y - self.scroll_y).abs() > 0.1 {

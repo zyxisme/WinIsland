@@ -1,7 +1,6 @@
 use std::fs;
 use std::path::{PathBuf};
 use serde::{Deserialize, Serialize};
-use crate::core::config::{AppConfig};
 use std::process::Command;
 use std::io::Read;
 use windows::core::PCWSTR;
@@ -25,36 +24,27 @@ pub fn get_app_dir() -> PathBuf {
     path
 }
 
-pub fn check_for_updates(config: &AppConfig) {
-    if !config.check_for_updates {
-        return;
-    }
-
-    std::thread::spawn(move || {
-        let app_dir = get_app_dir();
-        let local_json_path = app_dir.join("version_info.json");
-        
-        let remote_json_str = match ureq::get(UPDATE_URL_JSON).call() {
-            Ok(resp) => match resp.into_string() {
-                Ok(s) => s,
-                Err(_) => return,
-            },
+fn do_check(app_dir: &PathBuf) {
+    let local_json_path = app_dir.join("version_info.json");
+    
+    let remote_json_str = match ureq::get(UPDATE_URL_JSON).call() {
+        Ok(resp) => match resp.into_string() {
+            Ok(s) => s,
             Err(_) => return,
-        };
+        },
+        Err(_) => return,
+    };
 
-        let remote_info: VersionInfo = match serde_json::from_str(&remote_json_str) {
-            Ok(info) => info,
-            Err(_) => return,
-        };
+    let remote_info: VersionInfo = match serde_json::from_str(&remote_json_str) {
+        Ok(info) => info,
+        Err(_) => return,
+    };
 
-        let mut needs_update = false;
-        if local_json_path.exists() {
-            if let Ok(local_content) = fs::read_to_string(&local_json_path) {
-                if let Ok(local_info) = serde_json::from_str::<VersionInfo>(&local_content) {
-                    if remote_info.timestamp > local_info.timestamp {
-                        needs_update = true;
-                    }
-                } else {
+    let mut needs_update = false;
+    if local_json_path.exists() {
+        if let Ok(local_content) = fs::read_to_string(&local_json_path) {
+            if let Ok(local_info) = serde_json::from_str::<VersionInfo>(&local_content) {
+                if remote_info.timestamp > local_info.timestamp {
                     needs_update = true;
                 }
             } else {
@@ -63,22 +53,50 @@ pub fn check_for_updates(config: &AppConfig) {
         } else {
             needs_update = true;
         }
+    } else {
+        needs_update = true;
+    }
 
-        if needs_update {
-            let title: Vec<u16> = format!("{}\0", tr("update_available_title")).encode_utf16().collect();
-            let text: Vec<u16> = tr("update_available_desc").replace("{}", &remote_info.timestamp).add_null().encode_utf16().collect();
+    if needs_update {
+        let title: Vec<u16> = format!("{}\0", tr("update_available_title")).encode_utf16().collect();
+        let text: Vec<u16> = tr("update_available_desc").replace("{}", &remote_info.timestamp).add_null().encode_utf16().collect();
+        
+        let result = unsafe {
+            MessageBoxW(
+                None,
+                PCWSTR(text.as_ptr()),
+                PCWSTR(title.as_ptr()),
+                MB_OKCANCEL | MB_ICONINFORMATION | MB_TOPMOST | MB_SETFOREGROUND
+            )
+        };
+
+        if result == IDOK || result == IDYES {
+            perform_update(remote_json_str, app_dir.clone());
+        }
+    }
+}
+
+pub fn start_update_checker() {
+    std::thread::spawn(move || {
+        let app_dir = get_app_dir();
+        let mut last_check = std::time::Instant::now();
+        
+        // Initial check
+        if crate::core::persistence::load_config().check_for_updates {
+            do_check(&app_dir);
+        }
+
+        loop {
+            std::thread::sleep(std::time::Duration::from_secs(60)); // Check config every minute
+            let config = crate::core::persistence::load_config();
+            if !config.check_for_updates {
+                continue;
+            }
             
-            let result = unsafe {
-                MessageBoxW(
-                    None,
-                    PCWSTR(text.as_ptr()),
-                    PCWSTR(title.as_ptr()),
-                    MB_OKCANCEL | MB_ICONINFORMATION | MB_TOPMOST | MB_SETFOREGROUND
-                )
-            };
-
-            if result == IDOK || result == IDYES {
-                perform_update(remote_json_str, app_dir);
+            let interval_secs = config.update_check_interval * 3600.0;
+            if last_check.elapsed().as_secs_f32() >= interval_secs {
+                do_check(&app_dir);
+                last_check = std::time::Instant::now();
             }
         }
     });

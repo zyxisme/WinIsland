@@ -28,6 +28,8 @@ pub struct AppConfig {
     pub auto_hide_delay: f32,
     #[serde(default = "default_check_for_updates")]
     pub check_for_updates: bool,
+    #[serde(default = "default_update_check_interval")]
+    pub update_check_interval: f32,
     #[serde(default = "default_language")]
     pub language: String,
 }
@@ -56,6 +58,10 @@ fn default_check_for_updates() -> bool {
     true
 }
 
+fn default_update_check_interval() -> f32 {
+    4.0
+}
+
 fn default_language() -> String {
     "auto".to_string()
 }
@@ -78,6 +84,7 @@ impl Default for AppConfig {
             auto_hide: false,
             auto_hide_delay: 5.0,
             check_for_updates: true,
+            update_check_interval: 4.0,
             language: "auto".to_string(),
         }
     }

@@ -29,7 +29,7 @@ fn main() {
                 return;
             }
         }
-        crate::utils::updater::check_for_updates(&config);
+        crate::utils::updater::start_update_checker();
         
         let event_loop = EventLoop::new().unwrap();
         let mut app = App::default();
