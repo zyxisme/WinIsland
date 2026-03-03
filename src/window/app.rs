@@ -332,11 +332,20 @@ impl ApplicationHandler for App {
                 let current_config = load_config();
                 if current_config != self.config {
                     let old_scale = self.config.global_scale;
+                    let old_max_w = self.config.expanded_width;
+                    let old_max_h = self.config.expanded_height;
+                    
                     self.config = current_config;
+                    
                     let max_w = self.config.expanded_width.max(450.0);
                     let new_os_w = (max_w * self.config.global_scale + PADDING) as u32;
                     let new_os_h = (self.config.expanded_height * self.config.global_scale + PADDING) as u32;
-                    if new_os_w != self.os_w || new_os_h != self.os_h || old_scale != self.config.global_scale {
+                    
+                    if new_os_w != self.os_w || new_os_h != self.os_h || 
+                       (old_scale - self.config.global_scale).abs() > 0.001 ||
+                       (old_max_w - self.config.expanded_width).abs() > 0.1 ||
+                       (old_max_h - self.config.expanded_height).abs() > 0.1 {
+                        
                         self.os_w = new_os_w;
                         self.os_h = new_os_h;
                         let _ = window.request_inner_size(PhysicalSize::new(self.os_w, self.os_h));
@@ -607,4 +616,3 @@ impl ApplicationHandler for App {
         }
     }
 }
-

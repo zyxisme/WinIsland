@@ -11,7 +11,8 @@ use winit::application::ApplicationHandler;
 use winit::dpi::LogicalSize;
 use winit::event::{ElementState, MouseButton, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, EventLoop};
-use winit::window::{Window, WindowId};
+use winit::window::{Window, WindowId, WindowButtons};
+use winit::keyboard::{Key, NamedKey};
 const SETTINGS_W: f32 = 400.0;
 const SETTINGS_H: f32 = 550.0;
 use crate::utils::icon::get_app_icon;
@@ -86,9 +87,9 @@ impl SettingsApp {
     }
     fn draw(&mut self) {
         let win = self.window.as_ref().unwrap();
-        let scale = win.scale_factor() as f32;
-        let p_w = (SETTINGS_W * scale) as i32;
-        let p_h = (SETTINGS_H * scale) as i32;
+        let size = win.inner_size();
+        let p_w = size.width as i32;
+        let p_h = size.height as i32;
         if p_w <= 0 || p_h <= 0 { return; }
 
         let mut sk_surface = if let Some(ref s) = self.sk_surface {
@@ -107,7 +108,14 @@ impl SettingsApp {
 
         let canvas = sk_surface.canvas();
         canvas.clear(COLOR_BG);
+        let scale = win.scale_factor() as f32;
         canvas.scale((scale, scale));
+        
+        let logical_w = p_w as f32 / scale;
+        let logical_h = p_h as f32 / scale;
+        let dx = (logical_w - SETTINGS_W) / 2.0;
+        let dy = (logical_h - SETTINGS_H) / 2.0;
+        canvas.translate((dx, dy));
         
         self.draw_tabs(canvas);
 
@@ -320,41 +328,57 @@ impl SettingsApp {
     }
     fn handle_click(&mut self) {
         let (mx, my) = self.logical_mouse_pos;
-        let content_my = if self.active_tab == 0 && my >= 70.0 {
-            my + self.scroll_y
-        } else {
-            my
-        };
         let mut changed = false;
         let cx = SETTINGS_W / 2.0;
-        if my >= 20.0 && my <= 56.0 {
-            if mx >= cx - 85.0 && mx <= cx { self.active_tab = 0; changed = true; }
-            else if mx >= cx && mx <= cx + 85.0 { self.active_tab = 1; changed = true; }
+        
+        let win = self.window.as_ref().unwrap();
+        let scale = win.scale_factor() as f32;
+        let size = win.inner_size();
+        let dx = ((size.width as f32 / scale) - SETTINGS_W) / 2.0;
+        let dy = ((size.height as f32 / scale) - SETTINGS_H) / 2.0;
+        let lmx = mx - dx;
+        let lmy = my - dy;
+
+        let content_my = if self.active_tab == 0 && lmy >= 70.0 {
+            lmy + self.scroll_y
+        } else {
+            lmy
+        };
+
+        if lmy >= 20.0 && lmy <= 56.0 {
+            if lmx >= cx - 85.0 && lmx <= cx { self.active_tab = 0; changed = true; }
+            else if lmx >= cx && lmx <= cx + 85.0 { self.active_tab = 1; changed = true; }
         }
         if self.active_tab == 0 {
             let sy = 90.0;
-            self.check_btn(mx, content_my, 270.0, sy + 2.0, |c| c.global_scale = (c.global_scale - 0.05).max(0.5), &mut changed);
-            self.check_btn(mx, content_my, 345.0, sy + 2.0, |c| c.global_scale = (c.global_scale + 0.05).min(5.0), &mut changed);
-            self.check_btn(mx, content_my, 270.0, sy + 52.0, |c| c.base_width -= 5.0, &mut changed);
-            self.check_btn(mx, content_my, 345.0, sy + 52.0, |c| c.base_width += 5.0, &mut changed);
-            self.check_btn(mx, content_my, 270.0, sy + 102.0, |c| c.base_height -= 2.0, &mut changed);
-            self.check_btn(mx, content_my, 345.0, sy + 102.0, |c| c.base_height += 2.0, &mut changed);
-            self.check_btn(mx, content_my, 270.0, sy + 152.0, |c| c.expanded_width -= 10.0, &mut changed);
-            self.check_btn(mx, content_my, 345.0, sy + 152.0, |c| c.expanded_width += 10.0, &mut changed);
-            self.check_btn(mx, content_my, 270.0, sy + 202.0, |c| c.expanded_height -= 10.0, &mut changed);
-            self.check_btn(mx, content_my, 345.0, sy + 202.0, |c| c.expanded_height += 10.0, &mut changed);
+            self.check_btn(lmx, content_my, 270.0, sy + 2.0, |c| {
+                c.global_scale = (c.global_scale - 0.05).max(0.5);
+                c.global_scale = (c.global_scale * 100.0).round() / 100.0;
+            }, &mut changed);
+            self.check_btn(lmx, content_my, 345.0, sy + 2.0, |c| {
+                c.global_scale = (c.global_scale + 0.05).min(5.0);
+                c.global_scale = (c.global_scale * 100.0).round() / 100.0;
+            }, &mut changed);
+            self.check_btn(lmx, content_my, 270.0, sy + 52.0, |c| c.base_width -= 5.0, &mut changed);
+            self.check_btn(lmx, content_my, 345.0, sy + 52.0, |c| c.base_width += 5.0, &mut changed);
+            self.check_btn(lmx, content_my, 270.0, sy + 102.0, |c| c.base_height -= 2.0, &mut changed);
+            self.check_btn(lmx, content_my, 345.0, sy + 102.0, |c| c.base_height += 2.0, &mut changed);
+            self.check_btn(lmx, content_my, 270.0, sy + 152.0, |c| c.expanded_width -= 10.0, &mut changed);
+            self.check_btn(lmx, content_my, 345.0, sy + 152.0, |c| c.expanded_width += 10.0, &mut changed);
+            self.check_btn(lmx, content_my, 270.0, sy + 202.0, |c| c.expanded_height -= 10.0, &mut changed);
+            self.check_btn(lmx, content_my, 345.0, sy + 202.0, |c| c.expanded_height += 10.0, &mut changed);
 
             let sw_border_y = sy + 260.0;
-            if Self::in_rect(mx, content_my, 326.0, sw_border_y + 3.0, 48.0, 26.0) {
+            if Self::in_rect(lmx, content_my, 326.0, sw_border_y + 3.0, 48.0, 26.0) {
                 self.config.adaptive_border = !self.config.adaptive_border;
                 changed = true;
             }
-            if Self::in_rect(mx, content_my, 326.0, sw_border_y + 53.0, 48.0, 26.0) {
+            if Self::in_rect(lmx, content_my, 326.0, sw_border_y + 53.0, 48.0, 26.0) {
                 self.config.motion_blur = !self.config.motion_blur;
                 changed = true;
             }
             let font_y = sw_border_y + 100.0;
-            if Self::in_rect(mx, content_my, 310.0, font_y + 3.0, 65.0, 26.0) {
+            if Self::in_rect(lmx, content_my, 310.0, font_y + 3.0, 65.0, 26.0) {
                 if let Some(path) = rfd::FileDialog::new()
                     .add_filter("Fonts", &["ttf", "otf"])
                     .pick_file() {
@@ -363,47 +387,47 @@ impl SettingsApp {
                     changed = true;
                 }
             }
-            if self.config.custom_font_path.is_some() && Self::in_rect(mx, content_my, 235.0, font_y + 3.0, 65.0, 26.0) {
+            if self.config.custom_font_path.is_some() && Self::in_rect(lmx, content_my, 235.0, font_y + 3.0, 65.0, 26.0) {
                 self.config.custom_font_path = None;
                 self.refresh_custom_font_cache();
                 changed = true;
             }
 
             let autostart_y = font_y + 50.0;
-            if Self::in_rect(mx, content_my, 326.0, autostart_y + 3.0, 48.0, 26.0) {
+            if Self::in_rect(lmx, content_my, 326.0, autostart_y + 3.0, 48.0, 26.0) {
                 self.config.auto_start = !self.config.auto_start;
                 let _ = set_autostart(self.config.auto_start);
                 changed = true;
             }
             let autohide_y = autostart_y + 50.0;
-            if Self::in_rect(mx, content_my, 326.0, autohide_y + 3.0, 48.0, 26.0) {
+            if Self::in_rect(lmx, content_my, 326.0, autohide_y + 3.0, 48.0, 26.0) {
                 self.config.auto_hide = !self.config.auto_hide;
                 changed = true;
             }
             let update_y = autohide_y + 50.0;
-            if Self::in_rect(mx, content_my, 326.0, update_y + 3.0, 48.0, 26.0) {
+            if Self::in_rect(lmx, content_my, 326.0, update_y + 3.0, 48.0, 26.0) {
                 self.config.check_for_updates = !self.config.check_for_updates;
                 changed = true;
             }
             let lang_y = update_y + 50.0;
-            if Self::in_rect(mx, content_my, 300.0, lang_y + 3.0, 75.0, 26.0) {
+            if Self::in_rect(lmx, content_my, 300.0, lang_y + 3.0, 75.0, 26.0) {
                 self.config.language = if current_lang() == "zh" { "en".to_string() } else { "zh".to_string() };
                 set_lang(&self.config.language);
                 changed = true;
             }
             let delay_y = lang_y + 50.0;
             if self.config.auto_hide {
-                self.check_btn(mx, content_my, 270.0, delay_y + 2.0, |c| c.auto_hide_delay = (c.auto_hide_delay - 1.0).max(1.0), &mut changed);
-                self.check_btn(mx, content_my, 345.0, delay_y + 2.0, |c| c.auto_hide_delay = (c.auto_hide_delay + 1.0).min(60.0), &mut changed);
+                self.check_btn(lmx, content_my, 270.0, delay_y + 2.0, |c| c.auto_hide_delay = (c.auto_hide_delay - 1.0).max(1.0), &mut changed);
+                self.check_btn(lmx, content_my, 345.0, delay_y + 2.0, |c| c.auto_hide_delay = (c.auto_hide_delay + 1.0).min(60.0), &mut changed);
             }
             let reset_y = if self.config.auto_hide { 810.0 } else { 760.0 };
-            if mx >= cx - 100.0 && mx <= cx + 100.0 && content_my >= reset_y - 24.0 && content_my <= reset_y + 12.0 {
+            if lmx >= cx - 100.0 && lmx <= cx + 100.0 && content_my >= reset_y - 24.0 && content_my <= reset_y + 12.0 {
                 self.config = AppConfig::default();
                 set_lang(if self.config.language == "auto" { "en" } else { &self.config.language });
                 self.refresh_custom_font_cache();
                 changed = true;
             }
-        } else if my >= 260.0 && my <= 300.0 && mx >= cx - 100.0 && mx <= cx + 100.0 {
+        } else if lmy >= 260.0 && lmy <= 300.0 && lmx >= cx - 100.0 && lmx <= cx + 100.0 {
             let _ = open::that(APP_HOMEPAGE);
         }
         if changed {
@@ -422,7 +446,6 @@ impl SettingsApp {
     where F: FnMut(&mut AppConfig) {
         if mx >= bx && mx <= bx + 28.0 && my >= by && my <= by + 28.0 {
             f(&mut self.config);
-            self.config.global_scale = (self.config.global_scale * 100.0).round() / 100.0;
             *changed = true;
         }
     }
@@ -433,18 +456,39 @@ impl ApplicationHandler for SettingsApp {
             .with_title("Settings")
             .with_inner_size(LogicalSize::new(SETTINGS_W as f64, SETTINGS_H as f64))
             .with_resizable(false)
+            .with_enabled_buttons(WindowButtons::CLOSE | WindowButtons::MINIMIZE)
             .with_window_icon(get_app_icon());
         let window = Arc::new(event_loop.create_window(attrs).unwrap());
         self.window = Some(window.clone());
         let context = Context::new(window.clone()).unwrap();
         let mut surface = Surface::new(&context, window.clone()).unwrap();
-        let scale = window.scale_factor();
-        surface.resize(std::num::NonZeroU32::new((SETTINGS_W as f64 * scale) as u32).unwrap(), std::num::NonZeroU32::new((SETTINGS_H as f64 * scale) as u32).unwrap()).unwrap();
+        let size = window.inner_size();
+        surface.resize(std::num::NonZeroU32::new(size.width).unwrap(), std::num::NonZeroU32::new(size.height).unwrap()).unwrap();
         self.surface = Some(surface);
     }
     fn window_event(&mut self, _el: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
         match event {
             WindowEvent::CloseRequested => _el.exit(),
+            WindowEvent::Resized(new_size) => {
+                if let Some(surface) = &mut self.surface {
+                    surface.resize(std::num::NonZeroU32::new(new_size.width).unwrap(), std::num::NonZeroU32::new(new_size.height).unwrap()).unwrap();
+                    if let Some(win) = &self.window { win.request_redraw(); }
+                }
+            }
+            WindowEvent::ScaleFactorChanged { .. } => {
+                if let (Some(win), Some(surface)) = (&self.window, &mut self.surface) {
+                    let size = win.inner_size();
+                    surface.resize(std::num::NonZeroU32::new(size.width).unwrap(), std::num::NonZeroU32::new(size.height).unwrap()).unwrap();
+                    win.request_redraw();
+                }
+            }
+            WindowEvent::KeyboardInput { event, .. } => {
+                if event.state == ElementState::Pressed {
+                    if let Key::Named(NamedKey::F11) = event.logical_key {
+                        // Ignore F11
+                    }
+                }
+            }
             WindowEvent::CursorMoved { position, .. } => {
                 let scale = self.window.as_ref().unwrap().scale_factor() as f32;
                 self.logical_mouse_pos = (position.x as f32 / scale, position.y as f32 / scale);

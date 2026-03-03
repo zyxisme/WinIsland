@@ -12,13 +12,15 @@ use winit::application::ApplicationHandler;
 use winit::dpi::LogicalSize;
 use winit::event::{ElementState, MouseButton, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, EventLoop};
-use winit::window::{Window, WindowId};
+use winit::window::{Window, WindowId, WindowButtons};
+use winit::keyboard::{Key, NamedKey};
 const MUSIC_W: f32 = 400.0;
 const MUSIC_H: f32 = 550.0;
 use crate::utils::icon::get_app_icon;
 pub struct MusicApp {
     window: Option<Arc<Window>>,
     surface: Option<Surface<Arc<Window>, Arc<Window>>>,
+    sk_surface: Option<skia_safe::Surface>,
     config: AppConfig,
     logical_mouse_pos: (f32, f32),
     font_mgr: FontMgr,
@@ -34,6 +36,7 @@ impl MusicApp {
         Self {
             window: None,
             surface: None,
+            sk_surface: None,
             config,
             logical_mouse_pos: (0.0, 0.0),
             font_mgr: FontMgr::new(),
@@ -80,14 +83,36 @@ impl MusicApp {
     }
     fn draw(&mut self) {
         let win = self.window.as_ref().unwrap();
-        let scale = win.scale_factor() as f32;
-        let p_w = (MUSIC_W * scale) as i32;
-        let p_h = (MUSIC_H * scale) as i32;
+        let size = win.inner_size();
+        let p_w = size.width as i32;
+        let p_h = size.height as i32;
         if p_w <= 0 || p_h <= 0 { return; }
-        let mut sk_surface = surfaces::raster_n32_premul(skia_safe::ISize::new(p_w, p_h)).unwrap();
+
+        let mut sk_surface = if let Some(ref s) = self.sk_surface {
+            if s.width() == p_w && s.height() == p_h {
+                s.clone()
+            } else {
+                let new_s = surfaces::raster_n32_premul(skia_safe::ISize::new(p_w, p_h)).unwrap();
+                self.sk_surface = Some(new_s.clone());
+                new_s
+            }
+        } else {
+            let new_s = surfaces::raster_n32_premul(skia_safe::ISize::new(p_w, p_h)).unwrap();
+            self.sk_surface = Some(new_s.clone());
+            new_s
+        };
+
         let canvas = sk_surface.canvas();
         canvas.clear(COLOR_BG);
+        let scale = win.scale_factor() as f32;
         canvas.scale((scale, scale));
+        
+        let logical_w = p_w as f32 / scale;
+        let logical_h = p_h as f32 / scale;
+        let dx = (logical_w - MUSIC_W) / 2.0;
+        let dy = (logical_h - MUSIC_H) / 2.0;
+        canvas.translate((dx, dy));
+
         let font_title = self.get_font(22.0, true);
         let mut paint = Paint::default();
         paint.set_anti_alias(true);
@@ -174,11 +199,20 @@ impl MusicApp {
     fn handle_click(&mut self) {
         let (mx, my) = self.logical_mouse_pos;
         let mut changed = false;
-        if mx >= 320.0 && mx <= 380.0 && my >= 80.0 && my <= 110.0 {
+        
+        let win = self.window.as_ref().unwrap();
+        let scale = win.scale_factor() as f32;
+        let size = win.inner_size();
+        let dx = ((size.width as f32 / scale) - MUSIC_W) / 2.0;
+        let dy = ((size.height as f32 / scale) - MUSIC_H) / 2.0;
+        let lmx = mx - dx;
+        let lmy = my - dy;
+
+        if lmx >= 320.0 && lmx <= 380.0 && lmy >= 80.0 && lmy <= 110.0 {
             self.config.smtc_enabled = !self.config.smtc_enabled;
             changed = true;
         }
-        if mx >= 320.0 && mx <= 380.0 && my >= 130.0 && my <= 160.0 {
+        if lmx >= 320.0 && lmx <= 380.0 && lmy >= 130.0 && lmy <= 160.0 {
             self.config.show_lyrics = !self.config.show_lyrics;
             changed = true;
         }
@@ -186,18 +220,18 @@ impl MusicApp {
         let media_apps_y = 195.0;
 
         if self.config.smtc_enabled {
-            if mx >= MUSIC_W - 130.0 && mx <= MUSIC_W - 20.0 && my >= media_apps_y && my <= media_apps_y + 24.0 {
+            if lmx >= MUSIC_W - 130.0 && lmx <= MUSIC_W - 20.0 && lmy >= media_apps_y && lmy <= media_apps_y + 24.0 {
                 self.update_detected_apps();
                 if let Some(win) = &self.window { win.request_redraw(); }
             }
             let mut current_y = media_apps_y + 30.0;
             let mut to_remove = None;
             for (i, app) in self.detected_apps.iter().enumerate() {
-                if mx >= 320.0 && mx <= 380.0 && my >= current_y && my <= current_y + 45.0 {
+                if lmx >= 320.0 && lmx <= 380.0 && lmy >= current_y && lmy <= current_y + 45.0 {
                     to_remove = Some(i);
                     changed = true;
                     break;
-                } else if mx >= 20.0 && mx <= 320.0 && my >= current_y && my <= current_y + 45.0 {
+                } else if lmx >= 20.0 && lmx <= 320.0 && lmy >= current_y && lmy <= current_y + 45.0 {
                     if self.config.smtc_apps.contains(app) {
                         self.config.smtc_apps.retain(|a| a != app);
                     } else {
@@ -226,19 +260,40 @@ impl ApplicationHandler for MusicApp {
             .with_title(tr("music_settings_title"))
             .with_inner_size(LogicalSize::new(MUSIC_W as f64, MUSIC_H as f64))
             .with_resizable(false)
+            .with_enabled_buttons(WindowButtons::CLOSE | WindowButtons::MINIMIZE)
             .with_window_icon(get_app_icon());
         let window = Arc::new(event_loop.create_window(attrs).unwrap());
         self.window = Some(window.clone());
         let context = Context::new(window.clone()).unwrap();
         let mut surface = Surface::new(&context, window.clone()).unwrap();
-        let scale = window.scale_factor();
-        surface.resize(std::num::NonZeroU32::new((MUSIC_W as f64 * scale) as u32).unwrap(), std::num::NonZeroU32::new((MUSIC_H as f64 * scale) as u32).unwrap()).unwrap();
+        let size = window.inner_size();
+        surface.resize(std::num::NonZeroU32::new(size.width).unwrap(), std::num::NonZeroU32::new(size.height).unwrap()).unwrap();
         self.surface = Some(surface);
         self.update_detected_apps();
     }
     fn window_event(&mut self, _el: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
         match event {
             WindowEvent::CloseRequested => _el.exit(),
+            WindowEvent::Resized(new_size) => {
+                if let Some(surface) = &mut self.surface {
+                    surface.resize(std::num::NonZeroU32::new(new_size.width).unwrap(), std::num::NonZeroU32::new(new_size.height).unwrap()).unwrap();
+                    if let Some(win) = &self.window { win.request_redraw(); }
+                }
+            }
+            WindowEvent::ScaleFactorChanged { .. } => {
+                if let (Some(win), Some(surface)) = (&self.window, &mut self.surface) {
+                    let size = win.inner_size();
+                    surface.resize(std::num::NonZeroU32::new(size.width).unwrap(), std::num::NonZeroU32::new(size.height).unwrap()).unwrap();
+                    win.request_redraw();
+                }
+            }
+            WindowEvent::KeyboardInput { event, .. } => {
+                if event.state == ElementState::Pressed {
+                    if let Key::Named(NamedKey::F11) = event.logical_key {
+                        // Ignore F11
+                    }
+                }
+            }
             WindowEvent::CursorMoved { position, .. } => {
                 let scale = self.window.as_ref().unwrap().scale_factor() as f32;
                 self.logical_mouse_pos = (position.x as f32 / scale, position.y as f32 / scale);
