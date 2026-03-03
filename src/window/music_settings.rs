@@ -103,6 +103,7 @@ impl MusicApp {
         };
 
         let canvas = sk_surface.canvas();
+        canvas.reset_matrix();
         canvas.clear(COLOR_BG);
         let scale = win.scale_factor() as f32;
         canvas.scale((scale, scale));
