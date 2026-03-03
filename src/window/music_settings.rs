@@ -309,7 +309,7 @@ impl ApplicationHandler for MusicApp {
             self.frame_count += 1;
             if self.frame_count % 60 == 0 {
                 unsafe {
-                    let h = OpenMutexW(MUTEX_ALL_ACCESS, false, w!("Global\\WinIsland_SingleInstance_Mutex"));
+                    let h = OpenMutexW(MUTEX_ALL_ACCESS, false, w!("Local\\WinIsland_SingleInstance_Mutex"));
                     if h.is_err() { _el.exit(); return; }
                     let _ = windows::Win32::Foundation::CloseHandle(h.unwrap());
                 }

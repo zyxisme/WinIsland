@@ -3,14 +3,15 @@ use tray_icon::menu::{Menu, MenuItem};
 use tray_icon::{Icon, TrayIcon, TrayIconBuilder};
 
 pub struct TrayManager {
-    _tray: TrayIcon,
+    tray: TrayIcon,
     toggle_item: MenuItem,
     settings_item: MenuItem,
     quit_item: MenuItem,
+    is_light: bool,
 }
 
 impl TrayManager {
-    pub fn new() -> Self {
+    pub fn new(is_light: bool) -> Self {
         let menu = Menu::new();
         let toggle_item = MenuItem::new("Hide", true, None);
         let settings_item = MenuItem::new("Settings", true, None);
@@ -22,14 +23,22 @@ impl TrayManager {
         let tray = TrayIconBuilder::new()
             .with_tooltip(WINDOW_TITLE)
             .with_menu(Box::new(menu))
-            .with_icon(Self::load_tray_icon())
+            .with_icon(Self::load_tray_icon(is_light))
             .build()
             .unwrap();
         Self {
-            _tray: tray,
+            tray,
             toggle_item,
             settings_item,
             quit_item,
+            is_light,
+        }
+    }
+
+    pub fn update_theme(&mut self, is_light: bool) {
+        if self.is_light != is_light {
+            self.is_light = is_light;
+            let _ = self.tray.set_icon(Some(Self::load_tray_icon(is_light)));
         }
     }
 
@@ -41,9 +50,13 @@ impl TrayManager {
         }
     }
 
-    fn load_tray_icon() -> Icon {
-        let icon_bytes = include_bytes!("../../resources/icon.png");
-        let image = image::load_from_memory(icon_bytes).expect("Failed to load icon.png from resources");
+    fn load_tray_icon(is_light: bool) -> Icon {
+        let icon_bytes: &[u8] = if is_light {
+            include_bytes!("../../resources/icon-dark.png")
+        } else {
+            include_bytes!("../../resources/icon.png")
+        };
+        let image = image::load_from_memory(icon_bytes).expect("Failed to load icon from resources");
         let rgba = image.to_rgba8();
         let (width, height) = rgba.dimensions();
         let rgba_vec = rgba.into_raw();

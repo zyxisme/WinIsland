@@ -24,7 +24,7 @@ fn main() {
         crate::window::music_settings::run_music_settings(config);
     } else {
         unsafe {
-            let _ = CreateMutexW(None, true, w!("Global\\WinIsland_SingleInstance_Mutex"));
+            let _ = CreateMutexW(None, true, w!("Local\\WinIsland_SingleInstance_Mutex"));
             if GetLastError() == ERROR_ALREADY_EXISTS {
                 return;
             }

@@ -161,7 +161,8 @@ impl ApplicationHandler for App {
                 )
                 .unwrap();
             self.surface = Some(surface);
-            self.tray = Some(TrayManager::new());
+            let is_light = window.theme() == Some(winit::window::Theme::Light);
+            self.tray = Some(TrayManager::new(is_light));
             Self::enforce_topmost(&window);
             window.request_redraw();
         }
@@ -170,6 +171,12 @@ impl ApplicationHandler for App {
         if let Some(win) = &self.window {
             if win.id() == id {
                 match event {
+                    WindowEvent::ThemeChanged(theme) => {
+                        let is_light = theme == winit::window::Theme::Light;
+                        if let Some(tray) = self.tray.as_mut() {
+                            tray.update_theme(is_light);
+                        }
+                    }
                     WindowEvent::CloseRequested => (),
                     WindowEvent::MouseInput {
                         state,

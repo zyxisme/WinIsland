@@ -107,6 +107,7 @@ impl SettingsApp {
         };
 
         let canvas = sk_surface.canvas();
+        canvas.reset_matrix();
         canvas.clear(COLOR_BG);
         let scale = win.scale_factor() as f32;
         canvas.scale((scale, scale));
@@ -532,7 +533,7 @@ impl ApplicationHandler for SettingsApp {
             self.frame_count += 1;
             if self.frame_count % 60 == 0 {
                 unsafe {
-                    let h = OpenMutexW(MUTEX_ALL_ACCESS, false, w!("Global\\WinIsland_SingleInstance_Mutex"));
+                    let h = OpenMutexW(MUTEX_ALL_ACCESS, false, w!("Local\\WinIsland_SingleInstance_Mutex"));
                     if h.is_err() { _el.exit(); return; }
                     let _ = windows::Win32::Foundation::CloseHandle(h.unwrap());
                 }
