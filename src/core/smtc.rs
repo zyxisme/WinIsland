@@ -122,6 +122,50 @@ impl SmtcListener {
         self.info.lock().unwrap().clone()
     }
 
+    fn get_target_session(mgr: &GlobalSystemMediaTransportControlsSessionManager) -> Option<GlobalSystemMediaTransportControlsSession> {
+        let mut audio_session = None;
+        if let Ok(sessions) = mgr.GetSessions() {
+            if let Ok(count) = sessions.Size() {
+                for i in 0..count {
+                    if let Ok(session) = sessions.GetAt(i) {
+                        if let Ok(pb_info) = session.GetPlaybackInfo() {
+                            if let Ok(playback_type) = pb_info.PlaybackType() {
+                                if let Ok(value) = playback_type.Value() {
+                                    if value == windows::Media::MediaPlaybackType::Audio {
+                                        if let Ok(status) = pb_info.PlaybackStatus() {
+                                            if status == windows::Media::Control::GlobalSystemMediaTransportControlsSessionPlaybackStatus::Playing {
+                                                return Some(session);
+                                            }
+                                        }
+                                        if audio_session.is_none() {
+                                            audio_session = Some(session);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if let Some(session) = audio_session {
+            return Some(session);
+        }
+        if let Ok(session) = mgr.GetCurrentSession() {
+            if let Ok(pb_info) = session.GetPlaybackInfo() {
+                if let Ok(playback_type) = pb_info.PlaybackType() {
+                    if let Ok(value) = playback_type.Value() {
+                        if value == windows::Media::MediaPlaybackType::Video {
+                            return None;
+                        }
+                    }
+                }
+            }
+            return Some(session);
+        }
+        None
+    }
+
     fn init(&self) {
         let info_clone = self.info.clone();
         let active_clone = self.active.clone();
@@ -137,7 +181,7 @@ impl SmtcListener {
             };
 
             let update_info = |mgr: &GlobalSystemMediaTransportControlsSessionManager, arc: &Arc<Mutex<MediaInfo>>, src: &Arc<Mutex<String>>, fb: &Arc<Mutex<bool>>| {
-                if let Ok(session) = mgr.GetCurrentSession() {
+                if let Some(session) = Self::get_target_session(mgr) {
                     let _ = Self::fetch_properties(&session, arc, src, fb);
                 } else {
                     if let Ok(mut info) = arc.lock() {
@@ -162,8 +206,14 @@ impl SmtcListener {
             let _ = manager.SessionsChanged(&handler);
 
             while active_clone.load(Ordering::Relaxed) {
-                if let Ok(session) = manager.GetCurrentSession() {
+                if let Some(session) = Self::get_target_session(&manager) {
                     let _ = Self::fetch_properties(&session, &info_clone, &source_clone, &fallback_clone);
+                } else {
+                    if let Ok(mut info) = info_clone.lock() {
+                        if !info.title.is_empty() {
+                            *info = MediaInfo::default();
+                        }
+                    }
                 }
                 std::thread::sleep(Duration::from_millis(300));
             }
