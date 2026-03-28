@@ -154,6 +154,8 @@ impl SmtcListener {
                 info.last_update = Instant::now();
                 should_fetch_lyrics = true;
                 should_fetch_thumbnail = true;
+            } else if info.is_playing != is_playing && info.thumbnail.is_none() && !new_title.is_empty() {
+                should_fetch_thumbnail = true;
             }
             
             info.album = props.AlbumTitle()?.to_string();
@@ -189,26 +191,40 @@ impl SmtcListener {
         }
 
         if should_fetch_thumbnail {
-            if let Ok(thumb_ref) = props.Thumbnail() {
-                if let Ok(stream_async) = thumb_ref.OpenReadAsync() {
-                    if let Ok(stream) = stream_async.get() {
-                        if let Ok(size) = stream.Size() {
-                            let buffer = windows::Storage::Streams::Buffer::Create(size as u32).unwrap();
-                            if let Ok(res_buffer_async) = stream.ReadAsync(&buffer, size as u32, windows::Storage::Streams::InputStreamOptions::None) {
-                                if let Ok(res_buffer) = res_buffer_async.get() {
-                                    if let Ok(reader) = windows::Storage::Streams::DataReader::FromBuffer(&res_buffer) {
-                                        let mut bytes = vec![0u8; size as usize];
-                                        let _ = reader.ReadBytes(&mut bytes);
-                                        if let Ok(mut info) = info_arc.lock() {
-                                            info.thumbnail = Some(Arc::new(bytes));
-                                        }
-                                    }
-                                }
+            let arc_clone = info_arc.clone();
+            let session_clone = session.clone();
+            let title_clone = new_title.clone();
+            let artist_clone = new_artist.clone();
+            std::thread::spawn(move || {
+                for _ in 0..10 {
+                    let res = (|| -> windows::core::Result<Vec<u8>> {
+                        let props = session_clone.TryGetMediaPropertiesAsync()?.get()?;
+                        let thumb_ref = props.Thumbnail()?;
+                        let stream = thumb_ref.OpenReadAsync()?.get()?;
+                        let size = stream.Size()?;
+                        if size == 0 { 
+                            return Err(windows::core::Error::new(windows::core::HRESULT(-1), "Empty thumbnail")); 
+                        }
+                        let buffer = windows::Storage::Streams::Buffer::Create(size as u32)?;
+                        let res_buffer = stream.ReadAsync(&buffer, size as u32, windows::Storage::Streams::InputStreamOptions::None)?.get()?;
+                        let reader = windows::Storage::Streams::DataReader::FromBuffer(&res_buffer)?;
+                        let mut bytes = vec![0u8; size as usize];
+                        reader.ReadBytes(&mut bytes)?;
+                        Ok(bytes)
+                    })();
+
+                    if let Ok(bytes) = res {
+                        if let Ok(mut info) = arc_clone.lock() {
+                            if info.title == title_clone && info.artist == artist_clone {
+                                info.thumbnail = Some(Arc::new(bytes));
+                                return;
                             }
                         }
+                        return;
                     }
+                    std::thread::sleep(Duration::from_millis(500));
                 }
-            }
+            });
         }
 
         if should_fetch_lyrics {
