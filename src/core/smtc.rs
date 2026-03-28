@@ -95,7 +95,26 @@ impl SmtcListener {
             };
 
             let update_info = |mgr: &GlobalSystemMediaTransportControlsSessionManager, arc: &Arc<Mutex<MediaInfo>>| {
-                if let Ok(session) = mgr.GetCurrentSession() {
+                let mut session_to_use = mgr.GetCurrentSession().ok();
+                
+                if let Ok(sessions) = mgr.GetSessions() {
+                    let mut playing_session = None;
+                    for session in sessions {
+                        if let Ok(pb_info) = session.GetPlaybackInfo() {
+                            if let Ok(status) = pb_info.PlaybackStatus() {
+                                if status == windows::Media::Control::GlobalSystemMediaTransportControlsSessionPlaybackStatus::Playing {
+                                    playing_session = Some(session);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    if playing_session.is_some() {
+                        session_to_use = playing_session;
+                    }
+                }
+
+                if let Some(session) = session_to_use {
                     let _ = Self::fetch_properties(&session, arc);
                 } else {
                     if let Ok(mut info) = arc.lock() {
@@ -117,10 +136,21 @@ impl SmtcListener {
             });
             let _ = manager.SessionsChanged(&handler);
 
+            let mut last_manager_refresh = Instant::now();
+            let mut current_manager = manager;
+
             while active_clone.load(Ordering::Relaxed) {
-                if let Ok(session) = manager.GetCurrentSession() {
-                    let _ = Self::fetch_properties(&session, &info_clone);
+                if last_manager_refresh.elapsed() > Duration::from_secs(30) {
+                    if let Ok(new_mgr_op) = GlobalSystemMediaTransportControlsSessionManager::RequestAsync() {
+                        if let Ok(new_mgr) = new_mgr_op.get() {
+                            current_manager = new_mgr;
+                            let _ = current_manager.SessionsChanged(&handler);
+                        }
+                    }
+                    last_manager_refresh = Instant::now();
                 }
+
+                update_info(&current_manager, &info_clone);
                 std::thread::sleep(Duration::from_millis(300));
             }
         });
@@ -139,14 +169,16 @@ impl SmtcListener {
 
         let new_title = props.Title()?.to_string();
         let new_artist = props.Artist()?.to_string();
+        let new_album = props.AlbumTitle()?.to_string();
         let mut should_fetch_lyrics = false;
         let mut should_fetch_thumbnail = false;
 
         if let Ok(mut info) = info_arc.lock() {
-            let song_changed = info.title != new_title || info.artist != new_artist;
+            let song_changed = info.title != new_title || info.artist != new_artist || info.album != new_album;
             if song_changed {
                 info.title = new_title.clone();
                 info.artist = new_artist.clone();
+                info.album = new_album.clone();
                 info.lyrics = None;
                 info.thumbnail = None;
                 info.position_ms = smtc_pos;
@@ -157,8 +189,6 @@ impl SmtcListener {
             } else if info.is_playing != is_playing && info.thumbnail.is_none() && !new_title.is_empty() {
                 should_fetch_thumbnail = true;
             }
-            
-            info.album = props.AlbumTitle()?.to_string();
             
             let current_extrapolated = if info.is_playing {
                 info.position_ms + info.last_update.elapsed().as_millis() as u64
