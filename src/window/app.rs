@@ -59,6 +59,7 @@ pub struct App {
     drag_start_hide_val: f32,
     manually_hidden: bool,
     drag_has_moved: bool,
+    last_frame_time: Instant,
 }
 
 impl Default for App {
@@ -101,6 +102,7 @@ impl Default for App {
             drag_start_hide_val: 0.0,
             manually_hidden: false,
             drag_has_moved: false,
+            last_frame_time: Instant::now(),
         }
     }
 }
@@ -441,6 +443,10 @@ impl ApplicationHandler for App {
                     }
                 }
             }
+
+            let dt = (self.last_frame_time.elapsed().as_secs_f32() * 60.0).clamp(0.1, 3.0);
+            self.last_frame_time = Instant::now();
+
             if !self.visible {
                 std::thread::sleep(Duration::from_millis(16));
                 return;
@@ -533,7 +539,7 @@ impl ApplicationHandler for App {
             } else {
                 let hide_target = if self.auto_hidden || self.manually_hidden { 1.0 } else { 0.0 };
                 let (stiffness, damping) = if self.auto_hidden || self.manually_hidden { (0.12, 0.70) } else { (0.08, 0.78) };
-                self.spring_hide.update(hide_target, stiffness, damping);
+                self.spring_hide.update_dt(hide_target, stiffness, damping, dt);
             }
 
             if self.spring_hide.velocity.abs() > 0.001 || (self.spring_hide.value > 0.0 && self.spring_hide.value < 1.0) {
@@ -543,9 +549,6 @@ impl ApplicationHandler for App {
             if self.expanded && !is_hovering_visible && is_left_button_pressed() {
                 self.expanded = false;
                 self.tools_view = false;
-                
-                
-                
                 window.request_redraw();
             }
 
@@ -573,24 +576,9 @@ impl ApplicationHandler for App {
             for i in 0..4 {
                 let diff = self.target_border_weights[i] - self.border_weights[i];
                 if diff.abs() > 0.005 {
-                    self.border_weights[i] += diff * 0.1;
+                    self.border_weights[i] += diff * 0.1 * dt;
                 } else {
                     self.border_weights[i] = self.target_border_weights[i];
-                }
-            }
-            let mut music_active = false;
-            let media = self.smtc.get_info();
-            if self.config.smtc_enabled && !media.title.is_empty() {
-                self.last_media_playing = media.is_playing;
-                if self.last_media_playing {
-                    self.last_playing_time = Instant::now();
-                    music_active = true;
-                } else if self.last_playing_time.elapsed() < Duration::from_secs(5) {
-                    music_active = true;
-                }
-                if media.title != self.last_media_title {
-                    self.last_media_title = media.title.clone();
-                    window.request_redraw();
                 }
             }
 
@@ -608,7 +596,7 @@ impl ApplicationHandler for App {
             }
 
             if self.lyric_transition < 1.0 {
-                self.lyric_transition += 0.05;
+                self.lyric_transition += 0.05 * dt;
                 if self.lyric_transition > 1.0 {
                     self.lyric_transition = 1.0;
                 }
@@ -646,10 +634,10 @@ impl ApplicationHandler for App {
             let target_h = (if self.expanded { self.config.expanded_height } else { self.config.base_height }) * self.config.global_scale;
             let target_r = if self.expanded { 32.0 * self.config.global_scale } else { (self.config.base_height * self.config.global_scale) / 2.0 };
             let target_view = if self.tools_view { 1.0 } else { 0.0 };
-            self.spring_w.update(target_w, 0.10, 0.68);
-            self.spring_h.update(target_h, 0.10, 0.68);
-            self.spring_r.update(target_r, 0.10, 0.68);
-            self.spring_view.update(target_view, 0.12, 0.68);
+            self.spring_w.update_dt(target_w, 0.10, 0.68, dt);
+            self.spring_h.update_dt(target_h, 0.10, 0.68, dt);
+            self.spring_r.update_dt(target_r, 0.10, 0.68, dt);
+            self.spring_view.update_dt(target_view, 0.12, 0.68, dt);
 
             if self.expanded && self.tools_view {
                 let grid_w = self.spring_w.value - 80.0 * self.config.global_scale;
@@ -673,14 +661,14 @@ impl ApplicationHandler for App {
                         let target = if is_hover { 1.0 } else { 0.0 };
                         let diff = target - self.tool_hovers[idx];
                         if diff.abs() > 0.001 {
-                            self.tool_hovers[idx] += diff * 0.15;
+                            self.tool_hovers[idx] += diff * 0.15 * dt;
                             window.request_redraw();
                         } else {
                             self.tool_hovers[idx] = target;
                         }
 
                         if self.tool_presses[idx] > 0.0 {
-                            self.tool_presses[idx] -= 0.1;
+                            self.tool_presses[idx] -= 0.1 * dt;
                             if self.tool_presses[idx] < 0.0 { self.tool_presses[idx] = 0.0; }
                             window.request_redraw();
                         }
@@ -692,7 +680,7 @@ impl ApplicationHandler for App {
                 window.request_redraw();
             }
             let elapsed = frame_start.elapsed();
-            let target_frame_time = Duration::from_micros(16666);
+            let target_frame_time = Duration::from_micros(6944);
             if elapsed < target_frame_time {
                 std::thread::sleep(target_frame_time - elapsed);
             }

@@ -9,10 +9,10 @@ impl Spring {
             velocity: 0.0,
         }
     }
-    pub fn update(&mut self, target: f32, stiffness: f32, damping: f32) {
-        let force = (target - self.value) * stiffness;
-        self.velocity = (self.velocity + force) * damping;
-        self.value += self.velocity;
+    pub fn update_dt(&mut self, target: f32, stiffness: f32, damping: f32, dt: f32) {
+        let force = (target - self.value) * stiffness * dt;
+        self.velocity = (self.velocity + force) * damping.powf(dt);
+        self.value += self.velocity * dt;
     }
 }
 
