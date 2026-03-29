@@ -13,6 +13,7 @@ pub enum ClickResult {
     SourceOption(usize, usize),
     SectionButton(usize),
     Label(usize),
+    AppItem(usize),
 }
 
 fn in_rect(mx: f32, my: f32, x: f32, y: f32, w: f32, h: f32) -> bool {
@@ -22,6 +23,7 @@ fn in_rect(mx: f32, my: f32, x: f32, y: f32, w: f32, h: f32) -> bool {
 pub fn hit_test(items: &[SettingsItem], mx: f32, my: f32, start_y: f32, _width: f32) -> ClickResult {
     let mut y = start_y;
     let mut idx = 0;
+    let mut switch_idx = 0;
 
     for item in items {
         match item {
@@ -37,8 +39,9 @@ pub fn hit_test(items: &[SettingsItem], mx: f32, my: f32, start_y: f32, _width: 
             }
             SettingsItem::Switch { .. } => {
                 if in_rect(mx, my, SWITCH_X, y + SWITCH_Y_OFFSET, 48.0, 26.0) {
-                    return ClickResult::Switch(idx);
+                    return ClickResult::Switch(switch_idx);
                 }
+                switch_idx += 1;
             }
             SettingsItem::TextButton { btn_x, btn_w, .. } => {
                 if in_rect(mx, my, *btn_x, y + 3.0, *btn_w, 26.0) {
@@ -79,6 +82,11 @@ pub fn hit_test(items: &[SettingsItem], mx: f32, my: f32, start_y: f32, _width: 
             SettingsItem::Label { .. } => {
                 if in_rect(mx, my, CARD_MARGIN, y - 5.0, _width - CARD_MARGIN * 2.0, CARD_HEIGHT) {
                     return ClickResult::Label(idx);
+                }
+            }
+            SettingsItem::AppItem { enabled, .. } => {
+                if *enabled && in_rect(mx, my, CARD_MARGIN, y - 5.0, _width - CARD_MARGIN * 2.0, CARD_HEIGHT) {
+                    return ClickResult::AppItem(idx);
                 }
             }
             _ => {}

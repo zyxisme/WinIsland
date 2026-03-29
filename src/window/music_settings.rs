@@ -2,8 +2,7 @@ use crate::core::config::AppConfig;
 use crate::core::persistence::save_config;
 use crate::core::i18n::tr;
 use crate::utils::color::*;
-use crate::utils::settings_ui::{items::LABEL_Y_OFFSET, *};
-use skia_safe::{surfaces, Paint};
+use crate::utils::settings_ui::*;
 use softbuffer::{Context, Surface};
 use std::sync::Arc;
 use std::time::Duration;
@@ -16,6 +15,7 @@ use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::window::{Window, WindowId, WindowButtons};
 use winit::keyboard::{Key, NamedKey};
 use crate::utils::icon::get_app_icon;
+use skia_safe::surfaces;
 
 const MUSIC_W: f32 = 400.0;
 const MUSIC_H: f32 = 550.0;
@@ -71,7 +71,7 @@ impl MusicApp {
             SettingsItem::Switch { label: tr("lyrics_fallback"), on: if show_lyrics { self.config.lyrics_fallback } else { false } },
             SettingsItem::SectionHeader {
                 label: tr("media_apps"),
-                btn: Some((tr("scan_apps"), MUSIC_W - 130.0, 110.0, enabled)),
+                btn: None,
             },
         ];
 
@@ -80,7 +80,12 @@ impl MusicApp {
         } else {
             for app in &self.detected_apps {
                 let display_name = app.split('!').next().unwrap_or(app);
-                items.push(SettingsItem::Label { label: display_name.to_string(), enabled });
+                let active = self.config.smtc_apps.contains(app);
+                items.push(SettingsItem::AppItem {
+                    label: display_name.to_string(),
+                    active,
+                    enabled,
+                });
             }
         }
 
@@ -105,6 +110,11 @@ impl MusicApp {
                         }
                     }
                 }
+            }
+        }
+        for app in &self.config.smtc_apps {
+            if !self.detected_apps.contains(app) {
+                self.detected_apps.push(app.clone());
             }
         }
     }
@@ -151,30 +161,6 @@ impl MusicApp {
         let items = self.build_items();
         draw_items(canvas, &items, START_Y, MUSIC_W, &self.switch_anim);
 
-        if !self.detected_apps.is_empty() && self.config.smtc_enabled {
-            let fm = crate::utils::font::FontManager::global();
-            let mut paint = Paint::default();
-            paint.set_anti_alias(true);
-            let app_start_idx = if self.detected_apps.is_empty() { 0 } else {
-                items.len() - self.detected_apps.len()
-            };
-            let mut app_y = START_Y;
-            for (i, item) in items.iter().enumerate() {
-                if i >= app_start_idx && i < app_start_idx + self.detected_apps.len() {
-                    let app_idx = i - app_start_idx;
-                    let is_active = self.config.smtc_apps.contains(&self.detected_apps[app_idx]);
-                    paint.set_color(if is_active { COLOR_ACCENT } else { COLOR_TEXT_SEC });
-                    canvas.draw_circle((45.0, app_y + 17.5), 8.0, &paint);
-
-                    let del_str = tr("delete");
-                    let (_, rect) = fm.measure(&del_str, 12.0, false);
-                    paint.set_color(COLOR_DANGER);
-                    fm.draw_text(canvas, &del_str, (MUSIC_W - 35.0 - rect.width(), app_y + LABEL_Y_OFFSET), 12.0, false, &paint);
-                }
-                app_y += item.height();
-            }
-        }
-
         if let Some(surface) = self.surface.as_mut() {
             let mut buffer = surface.buffer_mut().unwrap();
             let info = skia_safe::ImageInfo::new(skia_safe::ISize::new(p_w, p_h), skia_safe::ColorType::BGRA8888, skia_safe::AlphaType::Premul, None);
@@ -214,26 +200,18 @@ impl MusicApp {
                 self.config.lyrics_source = if opt_idx == 0 { "163".to_string() } else { "lrclib".to_string() };
                 changed = true;
             }
-            ClickResult::SectionButton(_) => {
-                if self.config.smtc_enabled {
-                    self.update_detected_apps();
-                    if let Some(win) = &self.window { win.request_redraw(); }
-                }
-            }
-            ClickResult::Label(idx) => {
+            ClickResult::AppItem(idx) => {
                 if self.config.smtc_enabled && !self.detected_apps.is_empty() {
-                    let app_start = items.len() - self.detected_apps.len();
-                    if idx >= app_start {
-                        let app_idx = idx - app_start;
-                        if app_idx < self.detected_apps.len() {
-                            let app = &self.detected_apps[app_idx];
-                            if self.config.smtc_apps.contains(app) {
-                                self.config.smtc_apps.retain(|a| a != app);
-                            } else {
-                                self.config.smtc_apps.push(app.clone());
-                            }
-                            changed = true;
+                    let app_start = items.iter().position(|i| matches!(i, SettingsItem::AppItem { .. })).unwrap_or(items.len());
+                    let app_idx = idx - app_start;
+                    if app_idx < self.detected_apps.len() {
+                        let app = &self.detected_apps[app_idx];
+                        if self.config.smtc_apps.contains(app) {
+                            self.config.smtc_apps.retain(|a| a != app);
+                        } else {
+                            self.config.smtc_apps.push(app.clone());
                         }
+                        changed = true;
                     }
                 }
             }

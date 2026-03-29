@@ -48,6 +48,27 @@ fn draw_pill_btn(canvas: &Canvas, x: f32, y: f32, w: f32, h: f32, label: &str, t
     fm.draw_text_in_rect(canvas, label, x, y + 17.0, w, 12.0, true, &paint);
 }
 
+fn truncate_text(fm: &FontManager, text: &str, size: f32, max_w: f32) -> String {
+    let (w, _) = fm.measure(text, size, false);
+    if w <= max_w {
+        return text.to_string();
+    }
+    let ellipsis = "...";
+    let (ew, _) = fm.measure(ellipsis, size, false);
+    let mut result = String::new();
+    let mut current_w = 0.0;
+    for c in text.chars() {
+        let (cw, _) = fm.measure(&c.to_string(), size, false);
+        if current_w + cw + ew > max_w {
+            result.push_str(ellipsis);
+            return result;
+        }
+        current_w += cw;
+        result.push(c);
+    }
+    result
+}
+
 pub fn draw_items(canvas: &Canvas, items: &[SettingsItem], start_y: f32, width: f32, anims: &SwitchAnimator) {
     let fm = FontManager::global();
     let mut y = start_y;
@@ -128,6 +149,39 @@ pub fn draw_items(canvas: &Canvas, items: &[SettingsItem], start_y: f32, width: 
                 draw_card(canvas, y, width);
                 paint.set_color(if *enabled { COLOR_TEXT_PRI } else { COLOR_TEXT_SEC });
                 fm.draw_text(canvas, label, (LABEL_X, y + LABEL_Y_OFFSET), 15.0, false, &paint);
+            }
+            SettingsItem::AppItem { label, active, enabled } => {
+                draw_card(canvas, y, width);
+                let check_x = width - CARD_MARGIN - 38.0;
+                let check_y = y + SWITCH_Y_OFFSET;
+                let check_size = 22.0;
+                let mut p = Paint::default();
+                p.set_anti_alias(true);
+                if *active && *enabled {
+                    p.set_color(COLOR_ACCENT);
+                    canvas.draw_round_rect(Rect::from_xywh(check_x, check_y, check_size, check_size), 5.0, 5.0, &p);
+                    p.set_color(Color::WHITE);
+                    p.set_stroke_width(2.0);
+                    p.set_style(skia_safe::paint::Style::Stroke);
+                    let svg = format!(
+                        "M {} {} L {} {} L {} {}",
+                        check_x + 6.0, check_y + 11.0,
+                        check_x + 10.0, check_y + 15.0,
+                        check_x + 16.0, check_y + 7.0,
+                    );
+                    if let Some(path) = skia_safe::Path::from_svg(&svg) {
+                        canvas.draw_path(&path, &p);
+                    }
+                } else {
+                    p.set_color(if *enabled { COLOR_CARD_HIGHLIGHT } else { COLOR_DISABLED });
+                    p.set_style(skia_safe::paint::Style::Stroke);
+                    p.set_stroke_width(1.5);
+                    canvas.draw_round_rect(Rect::from_xywh(check_x, check_y, check_size, check_size), 5.0, 5.0, &p);
+                }
+                paint.set_color(if *enabled { COLOR_TEXT_PRI } else { COLOR_TEXT_SEC });
+                let max_label_w = check_x - LABEL_X - 8.0;
+                let display = truncate_text(fm, label, 14.0, max_label_w);
+                fm.draw_text(canvas, &display, (LABEL_X, y + LABEL_Y_OFFSET), 14.0, false, &paint);
             }
         }
         y += item.height();

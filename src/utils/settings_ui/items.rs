@@ -61,6 +61,11 @@ pub enum SettingsItem {
         label: String,
         enabled: bool,
     },
+    AppItem {
+        label: String,
+        active: bool,
+        enabled: bool,
+    },
 }
 
 impl SettingsItem {
@@ -70,6 +75,7 @@ impl SettingsItem {
             SettingsItem::CenterText { .. } => 35.0,
             SettingsItem::SectionHeader { .. } => 35.0,
             SettingsItem::CenterLink { .. } => 40.0,
+            SettingsItem::AppItem { .. } => ROW_HEIGHT,
             _ => ROW_HEIGHT,
         }
     }

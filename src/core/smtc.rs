@@ -70,18 +70,24 @@ pub struct SmtcListener {
     active: Arc<AtomicBool>,
     lyrics_source: Arc<Mutex<String>>,
     lyrics_fallback: Arc<Mutex<bool>>,
+    allowed_apps: Arc<Mutex<Vec<String>>>,
 }
 
 impl SmtcListener {
-    pub fn new(source: String, fallback: bool) -> Self {
+    pub fn new(source: String, fallback: bool, allowed: Vec<String>) -> Self {
         let listener = Self {
             info: Arc::new(Mutex::new(MediaInfo::default())),
             active: Arc::new(AtomicBool::new(true)),
             lyrics_source: Arc::new(Mutex::new(source)),
             lyrics_fallback: Arc::new(Mutex::new(fallback)),
+            allowed_apps: Arc::new(Mutex::new(allowed)),
         };
         listener.init();
         listener
+    }
+
+    pub fn set_allowed_apps(&self, apps: Vec<String>) {
+        *self.allowed_apps.lock().unwrap() = apps;
     }
 
     pub fn set_lyrics_source(&self, source: String) {
@@ -122,12 +128,23 @@ impl SmtcListener {
         self.info.lock().unwrap().clone()
     }
 
-    fn get_target_session(mgr: &GlobalSystemMediaTransportControlsSessionManager) -> Option<GlobalSystemMediaTransportControlsSession> {
+    fn get_target_session(mgr: &GlobalSystemMediaTransportControlsSessionManager, allowed: &[String]) -> Option<GlobalSystemMediaTransportControlsSession> {
+        if allowed.is_empty() {
+            return None;
+        }
         let mut audio_session = None;
         if let Ok(sessions) = mgr.GetSessions() {
             if let Ok(count) = sessions.Size() {
                 for i in 0..count {
                     if let Ok(session) = sessions.GetAt(i) {
+                        if let Ok(id) = session.SourceAppUserModelId() {
+                            let app_id = id.to_string();
+                            if !allowed.iter().any(|a| a == &app_id) {
+                                continue;
+                            }
+                        } else {
+                            continue;
+                        }
                         if let Ok(pb_info) = session.GetPlaybackInfo() {
                             if let Ok(playback_type) = pb_info.PlaybackType() {
                                 if let Ok(value) = playback_type.Value() {
@@ -152,6 +169,14 @@ impl SmtcListener {
             return Some(session);
         }
         if let Ok(session) = mgr.GetCurrentSession() {
+            if let Ok(id) = session.SourceAppUserModelId() {
+                let app_id = id.to_string();
+                if !allowed.iter().any(|a| a == &app_id) {
+                    return None;
+                }
+            } else {
+                return None;
+            }
             if let Ok(pb_info) = session.GetPlaybackInfo() {
                 if let Ok(playback_type) = pb_info.PlaybackType() {
                     if let Ok(value) = playback_type.Value() {
@@ -171,6 +196,7 @@ impl SmtcListener {
         let active_clone = self.active.clone();
         let source_clone = self.lyrics_source.clone();
         let fallback_clone = self.lyrics_fallback.clone();
+        let allowed_clone = self.allowed_apps.clone();
         std::thread::spawn(move || {
             let manager = match GlobalSystemMediaTransportControlsSessionManager::RequestAsync() {
                 Ok(op) => match op.get() {
@@ -180,8 +206,9 @@ impl SmtcListener {
                 Err(_) => return,
             };
 
-            let update_info = |mgr: &GlobalSystemMediaTransportControlsSessionManager, arc: &Arc<Mutex<MediaInfo>>, src: &Arc<Mutex<String>>, fb: &Arc<Mutex<bool>>| {
-                if let Some(session) = Self::get_target_session(mgr) {
+            let update_info = |mgr: &GlobalSystemMediaTransportControlsSessionManager, arc: &Arc<Mutex<MediaInfo>>, src: &Arc<Mutex<String>>, fb: &Arc<Mutex<bool>>, allowed: &Arc<Mutex<Vec<String>>>| {
+                let apps = allowed.lock().unwrap().clone();
+                if let Some(session) = Self::get_target_session(mgr, &apps) {
                     let _ = Self::fetch_properties(&session, arc, src, fb);
                 } else {
                     if let Ok(mut info) = arc.lock() {
@@ -192,14 +219,15 @@ impl SmtcListener {
                 }
             };
 
-            update_info(&manager, &info_clone, &source_clone, &fallback_clone);
+            update_info(&manager, &info_clone, &source_clone, &fallback_clone, &allowed_clone);
 
             let info_for_handler = info_clone.clone();
             let source_for_handler = source_clone.clone();
             let fallback_for_handler = fallback_clone.clone();
+            let allowed_for_handler = allowed_clone.clone();
             let handler = TypedEventHandler::new(move |m: &Option<GlobalSystemMediaTransportControlsSessionManager>, _| {
                 if let Some(mgr) = m {
-                    let _ = update_info(mgr, &info_for_handler, &source_for_handler, &fallback_for_handler);
+                    let _ = update_info(mgr, &info_for_handler, &source_for_handler, &fallback_for_handler, &allowed_for_handler);
                 }
                 Ok(())
             });
@@ -219,7 +247,7 @@ impl SmtcListener {
                     last_manager_refresh = Instant::now();
                 }
 
-                update_info(&current_manager, &info_clone, &source_clone, &fallback_clone);
+                update_info(&current_manager, &info_clone, &source_clone, &fallback_clone, &allowed_clone);
                 std::thread::sleep(Duration::from_millis(300));
             }
         });
