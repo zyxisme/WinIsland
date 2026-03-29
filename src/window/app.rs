@@ -583,7 +583,7 @@ impl ApplicationHandler for App {
                 }
             }
 
-            let current_lyric_opt = if self.config.show_lyrics { media.current_lyric() } else { None };
+            let current_lyric_opt = if self.config.show_lyrics { media.current_lyric((self.config.lyrics_delay * 1000.0) as i64) } else { None };
             if let Some(lyric) = current_lyric_opt {
                 if lyric != self.current_lyric_text {
                     self.old_lyric_text = self.current_lyric_text.clone();

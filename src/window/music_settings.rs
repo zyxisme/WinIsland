@@ -69,6 +69,11 @@ impl MusicApp {
                 enabled: show_lyrics,
             },
             SettingsItem::Switch { label: tr("lyrics_fallback"), on: if show_lyrics { self.config.lyrics_fallback } else { false } },
+            SettingsItem::Stepper {
+                label: tr("lyrics_delay"),
+                value: format!("{:.1}", self.config.lyrics_delay),
+                enabled: show_lyrics,
+            },
             SettingsItem::SectionHeader {
                 label: tr("media_apps"),
                 btn: None,
@@ -199,6 +204,18 @@ impl MusicApp {
             ClickResult::SourceOption(_, opt_idx) => {
                 self.config.lyrics_source = if opt_idx == 0 { "163".to_string() } else { "lrclib".to_string() };
                 changed = true;
+            }
+            ClickResult::StepperDec(5) => {
+                if self.config.show_lyrics {
+                    self.config.lyrics_delay = ((self.config.lyrics_delay * 10.0 - 1.0).round() / 10.0).max(-10.0);
+                    changed = true;
+                }
+            }
+            ClickResult::StepperInc(5) => {
+                if self.config.show_lyrics {
+                    self.config.lyrics_delay = ((self.config.lyrics_delay * 10.0 + 1.0).round() / 10.0).min(10.0);
+                    changed = true;
+                }
             }
             ClickResult::AppItem(idx) => {
                 if self.config.smtc_enabled && !self.detected_apps.is_empty() {

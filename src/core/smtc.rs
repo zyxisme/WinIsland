@@ -43,15 +43,16 @@ impl Default for MediaInfo {
 }
 
 impl MediaInfo {
-    pub fn current_lyric(&self) -> Option<String> {
+    pub fn current_lyric(&self, delay_ms: i64) -> Option<String> {
         let lyrics = self.lyrics.as_ref()?;
         if lyrics.is_empty() { return None; }
 
-        let current_pos = if self.is_playing {
+        let raw_pos = if self.is_playing {
             self.position_ms + self.last_update.elapsed().as_millis() as u64
         } else {
             self.position_ms
         };
+        let current_pos = (raw_pos as i64 + delay_ms).max(0) as u64;
         
         match lyrics.binary_search_by_key(&current_pos, |line| line.time_ms) {
             Ok(idx) => Some(lyrics[idx].text.clone()),
