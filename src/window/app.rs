@@ -163,8 +163,8 @@ impl ApplicationHandler for App {
                 let mon_pos = monitor.position();
                 let center_x = mon_pos.x + (mon_size.width as i32) / 2;
                 let top_y = mon_pos.y + TOP_OFFSET;
-                self.win_x = center_x - (self.os_w as i32) / 2;
-                self.win_y = top_y - (PADDING / 2.0) as i32;
+                self.win_x = center_x - (self.os_w as i32) / 2 + self.config.position_x_offset;
+                self.win_y = top_y - (PADDING / 2.0) as i32 + self.config.position_y_offset;
                 window.set_outer_position(PhysicalPosition::new(self.win_x, self.win_y));
             }
             let context = Context::new(window.clone()).unwrap();
@@ -417,16 +417,17 @@ impl ApplicationHandler for App {
                     self.smtc.set_lyrics_source(self.config.lyrics_source.clone());
                     self.smtc.set_lyrics_fallback(self.config.lyrics_fallback);
                     self.smtc.set_allowed_apps(self.config.smtc_apps.clone());
-                    
+
                     let max_w = self.config.expanded_width.max(450.0);
                     let new_os_w = (max_w * self.config.global_scale + PADDING) as u32;
                     let new_os_h = (self.config.expanded_height * self.config.global_scale + PADDING) as u32;
-                    
-                    if new_os_w != self.os_w || new_os_h != self.os_h || 
+
+                    let size_changed = new_os_w != self.os_w || new_os_h != self.os_h ||
                        (old_scale - self.config.global_scale).abs() > 0.001 ||
                        (old_max_w - self.config.expanded_width).abs() > 0.1 ||
-                       (old_max_h - self.config.expanded_height).abs() > 0.1 {
-                        
+                       (old_max_h - self.config.expanded_height).abs() > 0.1;
+
+                    if size_changed {
                         self.os_w = new_os_w;
                         self.os_h = new_os_h;
                         let _ = window.request_inner_size(PhysicalSize::new(self.os_w, self.os_h));
@@ -436,13 +437,16 @@ impl ApplicationHandler for App {
                                 std::num::NonZeroU32::new(self.os_h).unwrap(),
                             );
                         }
-                        if let Some(monitor) = window.current_monitor() {
-                            let mon_size = monitor.size();
-                            let mon_pos = monitor.position();
-                            let center_x = mon_pos.x + (mon_size.width as i32) / 2;
-                            self.win_x = center_x - (self.os_w as i32) / 2;
-                            window.set_outer_position(PhysicalPosition::new(self.win_x, self.win_y));
-                        }
+                    }
+
+                    if let Some(monitor) = window.current_monitor() {
+                        let mon_size = monitor.size();
+                        let mon_pos = monitor.position();
+                        let center_x = mon_pos.x + (mon_size.width as i32) / 2;
+                        let top_y = mon_pos.y + TOP_OFFSET;
+                        self.win_x = center_x - (self.os_w as i32) / 2 + self.config.position_x_offset;
+                        self.win_y = top_y - (PADDING / 2.0) as i32 + self.config.position_y_offset;
+                        window.set_outer_position(PhysicalPosition::new(self.win_x, self.win_y));
                     }
                 }
             }

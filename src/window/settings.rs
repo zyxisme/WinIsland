@@ -65,6 +65,8 @@ impl SettingsApp {
             SettingsItem::Stepper { label: tr("base_height"), value: self.config.base_height.to_string(), enabled: true },
             SettingsItem::Stepper { label: tr("expanded_width"), value: self.config.expanded_width.to_string(), enabled: true },
             SettingsItem::Stepper { label: tr("expanded_height"), value: self.config.expanded_height.to_string(), enabled: true },
+            SettingsItem::Stepper { label: tr("position_x_offset"), value: self.config.position_x_offset.to_string(), enabled: true },
+            SettingsItem::Stepper { label: tr("position_y_offset"), value: self.config.position_y_offset.to_string(), enabled: true },
             SettingsItem::Switch { label: tr("adaptive_border"), on: self.config.adaptive_border },
             SettingsItem::Switch { label: tr("motion_blur"), on: self.config.motion_blur },
             SettingsItem::FontPicker {
@@ -228,6 +230,10 @@ impl SettingsApp {
                 ClickResult::StepperInc(3) => { self.config.expanded_width += 10.0; changed = true; }
                 ClickResult::StepperDec(4) => { self.config.expanded_height -= 10.0; changed = true; }
                 ClickResult::StepperInc(4) => { self.config.expanded_height += 10.0; changed = true; }
+                ClickResult::StepperDec(5) => { self.config.position_x_offset -= 5; changed = true; }
+                ClickResult::StepperInc(5) => { self.config.position_x_offset += 5; changed = true; }
+                ClickResult::StepperDec(6) => { self.config.position_y_offset -= 5; changed = true; }
+                ClickResult::StepperInc(6) => { self.config.position_y_offset += 5; changed = true; }
                 ClickResult::Switch(idx) => {
                     match idx {
                         0 => self.config.adaptive_border = !self.config.adaptive_border,

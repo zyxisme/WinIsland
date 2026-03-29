@@ -38,6 +38,10 @@ pub struct AppConfig {
     pub lyrics_fallback: bool,
     #[serde(default = "default_lyrics_delay")]
     pub lyrics_delay: f64,
+    #[serde(default = "default_position_x_offset")]
+    pub position_x_offset: i32,
+    #[serde(default = "default_position_y_offset")]
+    pub position_y_offset: i32,
 }
 
 fn default_show_lyrics() -> bool {
@@ -84,6 +88,14 @@ fn default_lyrics_delay() -> f64 {
     0.0
 }
 
+fn default_position_x_offset() -> i32 {
+    0
+}
+
+fn default_position_y_offset() -> i32 {
+    0
+}
+
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
@@ -107,6 +119,8 @@ impl Default for AppConfig {
             lyrics_source: "163".to_string(),
             lyrics_fallback: true,
             lyrics_delay: 0.0,
+            position_x_offset: 0,
+            position_y_offset: 0,
         }
     }
 }
