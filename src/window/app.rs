@@ -9,7 +9,7 @@ use winit::platform::windows::WindowAttributesExtWindows;
 use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
 use winit::window::{Window, WindowId, WindowLevel};
 use windows::Win32::Foundation::HWND;
-use windows::Win32::UI::WindowsAndMessaging::{SetWindowPos, HWND_TOPMOST, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, GetWindowLongPtrW, SetWindowLongPtrW, GWL_EXSTYLE, WS_EX_TOOLWINDOW};
+use windows::Win32::UI::WindowsAndMessaging::{SetWindowPos, HWND_TOPMOST, SWP_NOACTIVATE, GetWindowLongPtrW, SetWindowLongPtrW, GWL_EXSTYLE, GWL_STYLE, WS_EX_TOOLWINDOW, WS_MAXIMIZEBOX};
 use crate::core::config::{AppConfig, PADDING, TOP_OFFSET, WINDOW_TITLE};
 use crate::core::persistence::load_config;
 use crate::core::render::draw_island;
@@ -108,7 +108,7 @@ impl Default for App {
 }
 
 impl App {
-    fn enforce_topmost(window: &Window) {
+    fn enforce_topmost(window: &Window, win_x: i32, win_y: i32, os_w: u32, os_h: u32) {
         if let Ok(handle) = window.window_handle() {
             if let RawWindowHandle::Win32(raw) = handle.as_raw() {
                 let hwnd = HWND(raw.hwnd.get() as *mut core::ffi::c_void);
@@ -116,11 +116,11 @@ impl App {
                     let _ = SetWindowPos(
                         hwnd,
                         HWND_TOPMOST,
-                        0,
-                        0,
-                        0,
-                        0,
-                        SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
+                        win_x,
+                        win_y,
+                        os_w as i32,
+                        os_h as i32,
+                        SWP_NOACTIVATE,
                     );
                 }
             }
@@ -151,6 +151,8 @@ impl ApplicationHandler for App {
                     unsafe {
                         let ex_style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
                         SetWindowLongPtrW(hwnd, GWL_EXSTYLE, ex_style | WS_EX_TOOLWINDOW.0 as isize);
+                        let style = GetWindowLongPtrW(hwnd, GWL_STYLE);
+                        SetWindowLongPtrW(hwnd, GWL_STYLE, style & !(WS_MAXIMIZEBOX.0 as isize));
                     }
                 }
             }
@@ -176,7 +178,7 @@ impl ApplicationHandler for App {
             self.surface = Some(surface);
             let is_light = window.theme() == Some(winit::window::Theme::Light);
             self.tray = Some(TrayManager::new(is_light));
-            Self::enforce_topmost(&window);
+            Self::enforce_topmost(&window, self.win_x, self.win_y, self.os_w, self.os_h);
             window.request_redraw();
         }
     }
@@ -377,7 +379,7 @@ impl ApplicationHandler for App {
     }
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
         if let Some(window) = &self.window {
-            Self::enforce_topmost(window);
+            Self::enforce_topmost(window, self.win_x, self.win_y, self.os_w, self.os_h);
             let frame_start = Instant::now();
             if let Some(tray) = &self.tray {
                 if let Ok(event) = tray_icon::menu::MenuEvent::receiver().try_recv() {
