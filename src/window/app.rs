@@ -58,6 +58,8 @@ pub struct App {
     manually_hidden: bool,
     drag_has_moved: bool,
     last_frame_time: Instant,
+    last_mon_size: (u32, u32),
+    last_mon_pos: (i32, i32),
 }
 
 impl Default for App {
@@ -99,6 +101,8 @@ impl Default for App {
             manually_hidden: false,
             drag_has_moved: false,
             last_frame_time: Instant::now(),
+            last_mon_size: (0, 0),
+            last_mon_pos: (0, 0),
         }
     }
 }
@@ -159,6 +163,8 @@ impl ApplicationHandler for App {
             if let Some(monitor) = window.current_monitor() {
                 let mon_size = monitor.size();
                 let mon_pos = monitor.position();
+                self.last_mon_size = (mon_size.width, mon_size.height);
+                self.last_mon_pos = (mon_pos.x, mon_pos.y);
                 let center_x = mon_pos.x + (mon_size.width as i32) / 2;
                 let top_y = mon_pos.y + TOP_OFFSET;
                 self.win_x = center_x - (self.os_w as i32) / 2 + self.config.position_x_offset;
@@ -398,7 +404,7 @@ impl ApplicationHandler for App {
                     let old_scale = self.config.global_scale;
                     let old_max_w = self.config.expanded_width;
                     let old_max_h = self.config.expanded_height;
-                    
+
                     self.config = current_config;
                     self.smtc.set_lyrics_source(self.config.lyrics_source.clone());
                     self.smtc.set_lyrics_fallback(self.config.lyrics_fallback);
@@ -428,6 +434,24 @@ impl ApplicationHandler for App {
                     if let Some(monitor) = window.current_monitor() {
                         let mon_size = monitor.size();
                         let mon_pos = monitor.position();
+                        self.last_mon_size = (mon_size.width, mon_size.height);
+                        self.last_mon_pos = (mon_pos.x, mon_pos.y);
+                        let center_x = mon_pos.x + (mon_size.width as i32) / 2;
+                        let top_y = mon_pos.y + TOP_OFFSET;
+                        self.win_x = center_x - (self.os_w as i32) / 2 + self.config.position_x_offset;
+                        self.win_y = top_y - (PADDING / 2.0) as i32 + self.config.position_y_offset;
+                        window.set_outer_position(PhysicalPosition::new(self.win_x, self.win_y));
+                    }
+                } else if let Some(monitor) = window.current_monitor() {
+                    // Even if config hasn't changed, check if monitor resolution/position changed
+                    // (e.g. after exiting a fullscreen game with a different resolution)
+                    let mon_size = monitor.size();
+                    let mon_pos = monitor.position();
+                    let cur_mon_size = (mon_size.width, mon_size.height);
+                    let cur_mon_pos = (mon_pos.x, mon_pos.y);
+                    if cur_mon_size != self.last_mon_size || cur_mon_pos != self.last_mon_pos {
+                        self.last_mon_size = cur_mon_size;
+                        self.last_mon_pos = cur_mon_pos;
                         let center_x = mon_pos.x + (mon_size.width as i32) / 2;
                         let top_y = mon_pos.y + TOP_OFFSET;
                         self.win_x = center_x - (self.os_w as i32) / 2 + self.config.position_x_offset;
