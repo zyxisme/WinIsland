@@ -95,6 +95,7 @@ impl SettingsApp {
             config.smtc_enabled,
             config.show_lyrics,
             config.lyrics_fallback,
+            config.lyrics_scroll,
         ]);
         Self {
             window: None,
@@ -194,6 +195,8 @@ impl SettingsApp {
             },
             SettingsItem::RowSwitch { label: tr("lyrics_fallback"), on: if show_lyrics { self.config.lyrics_fallback } else { false }, enabled: show_lyrics },
             SettingsItem::RowStepper { label: tr("lyrics_delay"), value: format!("{:.1}", self.config.lyrics_delay), enabled: show_lyrics },
+            SettingsItem::RowSwitch { label: tr("lyrics_scroll"), on: if show_lyrics { self.config.lyrics_scroll } else { false }, enabled: show_lyrics },
+            SettingsItem::RowStepper { label: tr("lyrics_scroll_max_width"), value: format!("{}", self.config.lyrics_scroll_max_width as i32), enabled: show_lyrics && self.config.lyrics_scroll },
             SettingsItem::GroupEnd,
             SettingsItem::SectionHeader { label: tr("media_apps") },
             SettingsItem::GroupStart,
@@ -247,6 +250,8 @@ impl SettingsApp {
         self.switch_anim.set_target(6, self.config.show_lyrics);
         let fb_on = if self.config.show_lyrics { self.config.lyrics_fallback } else { false };
         self.switch_anim.set_target(7, fb_on);
+        let fw_on = if self.config.show_lyrics { self.config.lyrics_scroll } else { false };
+        self.switch_anim.set_target(8, fw_on);
     }
 
     fn update_detected_apps(&mut self) {
@@ -474,7 +479,7 @@ impl SettingsApp {
                 SwitchAnimator::new_with_anims(&self.switch_anim, &[0, 1, 2, 3, 4])
             }
             1 => {
-                SwitchAnimator::new_with_anims(&self.switch_anim, &[5, 6, 7])
+                SwitchAnimator::new_with_anims(&self.switch_anim, &[5, 6, 7, 8])
             }
             _ => SwitchAnimator::new(&[]),
         }
@@ -644,6 +649,7 @@ impl SettingsApp {
                     self.config.smtc_enabled,
                     self.config.show_lyrics,
                     self.config.lyrics_fallback,
+                    self.config.lyrics_scroll,
                 ]);
                 changed = true;
             }
@@ -666,6 +672,7 @@ impl SettingsApp {
                     0 => self.config.smtc_enabled = !self.config.smtc_enabled,
                     1 => self.config.show_lyrics = !self.config.show_lyrics,
                     2 => if self.config.show_lyrics { self.config.lyrics_fallback = !self.config.lyrics_fallback },
+                    3 => if self.config.show_lyrics { self.config.lyrics_scroll = !self.config.lyrics_scroll },
                     _ => {}
                 }
                 self.sync_switch_targets();
@@ -700,6 +707,10 @@ impl SettingsApp {
                         if label == &tr("lyrics_delay") && self.config.show_lyrics {
                             if is_dec { self.config.lyrics_delay = ((self.config.lyrics_delay * 10.0 - 1.0).round() / 10.0).max(-10.0); }
                             else { self.config.lyrics_delay = ((self.config.lyrics_delay * 10.0 + 1.0).round() / 10.0).min(10.0); }
+                            changed = true;
+                        } else if label == &tr("lyrics_scroll_max_width") && self.config.show_lyrics && self.config.lyrics_scroll {
+                            if is_dec { self.config.lyrics_scroll_max_width = (self.config.lyrics_scroll_max_width - 10.0).max(100.0); }
+                            else { self.config.lyrics_scroll_max_width = (self.config.lyrics_scroll_max_width + 10.0).min(500.0); }
                             changed = true;
                         }
                     }

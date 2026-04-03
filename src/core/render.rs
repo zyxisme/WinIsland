@@ -31,6 +31,7 @@ pub fn draw_island(
     lyric_transition: f32,
     use_blur: bool,
     hide_progress: f32,
+    lyric_scroll_offset: f32,
 ) {
     let mut buffer = surface.buffer_mut().unwrap();
     let mut sk_surface = SK_SURFACE.with(|cell| {
@@ -131,7 +132,14 @@ pub fn draw_island(
                 let space_left = offset_x + 30.0 * global_scale;
                 let space_right = offset_x + current_w - 29.0 * global_scale;
                 let available_w = space_right - space_left;
-                let text_x = space_left + available_w / 2.0;
+                let scrolling = lyric_scroll_offset > 0.0;
+                let text_x = if scrolling {
+                    space_left - lyric_scroll_offset
+                } else {
+                    space_left + available_w / 2.0
+                };
+                let text_centered = !scrolling;
+                let text_max_w = if scrolling { 10000.0 } else { available_w };
 
                 canvas.save();
                 let clip_rect = Rect::from_xywh(space_left, offset_y, available_w, current_h);
@@ -143,14 +151,14 @@ pub fn draw_island(
                         text_paint.set_anti_alias(true);
                         let fade_alpha = (alpha as f32 * (1.0 - lyric_transition)) as u8;
                         text_paint.set_color(Color::from_argb(fade_alpha, 255, 255, 255));
-                        
+
                         let blur_sigma = lyric_transition * 12.0 * global_scale;
                         if blur_sigma > 0.1 {
                             text_paint.set_image_filter(image_filters::blur((blur_sigma, 0.0), None, None, None));
                         }
-                        
+
                         let text_y = offset_y + current_h / 2.0 + 4.0 * global_scale - (10.0 * global_scale * lyric_transition);
-                        draw_text_cached(canvas, old_lyric, (text_x, text_y), 12.0 * global_scale, skia_safe::FontStyle::normal(), &text_paint, true, available_w);
+                        draw_text_cached(canvas, old_lyric, (text_x, text_y), 12.0 * global_scale, skia_safe::FontStyle::normal(), &text_paint, text_centered, text_max_w);
                     }
 
                     if !current_lyric.is_empty() {
@@ -165,7 +173,7 @@ pub fn draw_island(
                         }
 
                         let text_y = offset_y + current_h / 2.0 + 4.0 * global_scale + (10.0 * global_scale * (1.0 - lyric_transition));
-                        draw_text_cached(canvas, current_lyric, (text_x, text_y), 12.0 * global_scale, skia_safe::FontStyle::normal(), &text_paint, true, available_w);
+                        draw_text_cached(canvas, current_lyric, (text_x, text_y), 12.0 * global_scale, skia_safe::FontStyle::normal(), &text_paint, text_centered, text_max_w);
                     }
                 } else {
                     let text_y = offset_y + current_h / 2.0 + 4.0 * global_scale;
@@ -175,14 +183,14 @@ pub fn draw_island(
                         let progress = lyric_transition * 2.0;
                         let fade_alpha = (alpha as f32 * (1.0 - progress)) as u8;
                         text_paint.set_color(Color::from_argb(fade_alpha, 255, 255, 255));
-                        draw_text_cached(canvas, old_lyric, (text_x, text_y), 12.0 * global_scale, skia_safe::FontStyle::normal(), &text_paint, true, available_w);
+                        draw_text_cached(canvas, old_lyric, (text_x, text_y), 12.0 * global_scale, skia_safe::FontStyle::normal(), &text_paint, text_centered, text_max_w);
                     } else if lyric_transition >= 0.5 && !current_lyric.is_empty() {
                         let mut text_paint = Paint::default();
                         text_paint.set_anti_alias(true);
                         let progress = (lyric_transition - 0.5) * 2.0;
                         let fade_alpha = (alpha as f32 * progress) as u8;
                         text_paint.set_color(Color::from_argb(fade_alpha, 255, 255, 255));
-                        draw_text_cached(canvas, current_lyric, (text_x, text_y), 12.0 * global_scale, skia_safe::FontStyle::normal(), &text_paint, true, available_w);
+                        draw_text_cached(canvas, current_lyric, (text_x, text_y), 12.0 * global_scale, skia_safe::FontStyle::normal(), &text_paint, text_centered, text_max_w);
                     }
                 }
                 canvas.restore();

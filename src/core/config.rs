@@ -40,6 +40,10 @@ pub struct AppConfig {
     pub lyrics_fallback: bool,
     #[serde(default = "default_lyrics_delay")]
     pub lyrics_delay: f64,
+    #[serde(default = "default_lyrics_scroll")]
+    pub lyrics_scroll: bool,
+    #[serde(default = "default_lyrics_scroll_max_width")]
+    pub lyrics_scroll_max_width: f32,
     #[serde(default = "default_position_x_offset")]
     pub position_x_offset: i32,
     #[serde(default = "default_position_y_offset")]
@@ -94,6 +98,14 @@ fn default_lyrics_delay() -> f64 {
     0.0
 }
 
+fn default_lyrics_scroll() -> bool {
+    false
+}
+
+fn default_lyrics_scroll_max_width() -> f32 {
+    300.0
+}
+
 fn default_position_x_offset() -> i32 {
     0
 }
@@ -126,6 +138,8 @@ impl Default for AppConfig {
             lyrics_source: "163".to_string(),
             lyrics_fallback: true,
             lyrics_delay: 0.0,
+            lyrics_scroll: false,
+            lyrics_scroll_max_width: 300.0,
             position_x_offset: 0,
             position_y_offset: 0,
         }

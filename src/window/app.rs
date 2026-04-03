@@ -60,6 +60,8 @@ pub struct App {
     last_frame_time: Instant,
     last_mon_size: (u32, u32),
     last_mon_pos: (i32, i32),
+    lyric_scroll_offset: f32,
+    lyric_scroll_pause: f32,
 }
 
 impl Default for App {
@@ -103,6 +105,8 @@ impl Default for App {
             last_frame_time: Instant::now(),
             last_mon_size: (0, 0),
             last_mon_pos: (0, 0),
+            lyric_scroll_offset: 0.0,
+            lyric_scroll_pause: 0.0,
         }
     }
 }
@@ -366,6 +370,7 @@ impl ApplicationHandler for App {
                                 self.lyric_transition,
                                 self.config.motion_blur,
                                 self.spring_hide.value,
+                                self.lyric_scroll_offset,
                             );
                         }
                     }
@@ -605,11 +610,15 @@ impl ApplicationHandler for App {
                     self.old_lyric_text = self.current_lyric_text.clone();
                     self.current_lyric_text = lyric.clone();
                     self.lyric_transition = 0.0;
+                    self.lyric_scroll_offset = 0.0;
+                    self.lyric_scroll_pause = 0.0;
                 }
             } else if !self.current_lyric_text.is_empty() {
                 self.old_lyric_text = self.current_lyric_text.clone();
                 self.current_lyric_text = String::new();
                 self.lyric_transition = 0.0;
+                self.lyric_scroll_offset = 0.0;
+                self.lyric_scroll_pause = 0.0;
             }
 
             if self.lyric_transition < 1.0 {
@@ -623,28 +632,74 @@ impl ApplicationHandler for App {
             let is_currently_hidden = self.auto_hidden || self.manually_hidden || self.spring_hide.value > 0.1;
             let target_base_w = if music_active && !self.expanded && !is_currently_hidden {
                 let has_visible_lyrics = self.config.show_lyrics && (!self.current_lyric_text.is_empty() || (!self.old_lyric_text.is_empty() && self.lyric_transition < 1.0));
-                
+
                 if has_visible_lyrics {
-                    let mut text_w = 0.0;
-                    let display_text = if !self.current_lyric_text.is_empty() {
-                        &self.current_lyric_text
-                    } else {
-                        &self.old_lyric_text
-                    };
-                    for c in display_text.chars() {
-                        if c.is_ascii() {
-                            text_w += 7.5;
+                    if self.config.lyrics_scroll {
+                        let mut text_w: f32 = 0.0;
+                        let display_text = if !self.current_lyric_text.is_empty() {
+                            &self.current_lyric_text
                         } else {
-                            text_w += 13.5;
+                            &self.old_lyric_text
+                        };
+                        for c in display_text.chars() {
+                            if c.is_ascii() {
+                                text_w += 7.5;
+                            } else {
+                                text_w += 13.5;
+                            }
                         }
+                        let natural_w = 60.0 + text_w;
+                        let max_w = self.config.lyrics_scroll_max_width;
+                        if natural_w > max_w {
+                            let fixed_w = max_w;
+                            let available_text_w = (fixed_w - 59.0) * self.config.global_scale;
+                            let full_text_w = text_w * self.config.global_scale;
+                            let overflow = full_text_w - available_text_w;
+                            if overflow > 0.0 && self.lyric_transition >= 1.0 {
+                                if self.lyric_scroll_offset < overflow {
+                                    if self.lyric_scroll_pause > 0.0 {
+                                        self.lyric_scroll_pause -= dt / 60.0;
+                                    } else {
+                                        self.lyric_scroll_offset += 0.8 * dt;
+                                        if self.lyric_scroll_offset >= overflow {
+                                            self.lyric_scroll_offset = overflow;
+                                        }
+                                    }
+                                    window.request_redraw();
+                                }
+                            } else {
+                                self.lyric_scroll_offset = 0.0;
+                            }
+                            fixed_w
+                        } else {
+                            self.lyric_scroll_offset = 0.0;
+                            let min_w = self.config.base_width + 35.0;
+                            natural_w.clamp(min_w, max_w)
+                        }
+                    } else {
+                        let mut text_w: f32 = 0.0;
+                        let display_text = if !self.current_lyric_text.is_empty() {
+                            &self.current_lyric_text
+                        } else {
+                            &self.old_lyric_text
+                        };
+                        for c in display_text.chars() {
+                            if c.is_ascii() {
+                                text_w += 7.5;
+                            } else {
+                                text_w += 13.5;
+                            }
+                        }
+                        self.lyric_scroll_offset = 0.0;
+                        let min_w = self.config.base_width + 35.0;
+                        let w: f32 = 60.0 + text_w;
+                        w.clamp(min_w, 450.0)
                     }
-                    let min_w = self.config.base_width + 35.0;
-                    let w: f32 = 60.0 + text_w;
-                    w.clamp(min_w, 450.0)
                 } else {
                     self.config.base_width + 35.0
                 }
             } else {
+                self.lyric_scroll_offset = 0.0;
                 self.config.base_width
             };
             let target_w = (if self.expanded { self.config.expanded_width } else { target_base_w }) * self.config.global_scale;

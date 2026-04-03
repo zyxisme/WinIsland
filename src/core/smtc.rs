@@ -53,7 +53,7 @@ impl MediaInfo {
             self.position_ms
         };
         let current_pos = (raw_pos as i64 + delay_ms).max(0) as u64;
-        
+
         match lyrics.binary_search_by_key(&current_pos, |line| line.time_ms) {
             Ok(idx) => Some(lyrics[idx].text.clone()),
             Err(idx) => {
