@@ -48,6 +48,8 @@ pub struct AppConfig {
     pub position_x_offset: i32,
     #[serde(default = "default_position_y_offset")]
     pub position_y_offset: i32,
+    #[serde(default = "default_monitor_index")]
+    pub monitor_index: i32,
 }
 
 fn default_show_lyrics() -> bool {
@@ -114,6 +116,10 @@ fn default_position_y_offset() -> i32 {
     0
 }
 
+fn default_monitor_index() -> i32 {
+    0
+}
+
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
@@ -142,6 +148,7 @@ impl Default for AppConfig {
             lyrics_scroll_max_width: 300.0,
             position_x_offset: 0,
             position_y_offset: 0,
+            monitor_index: 0,
         }
     }
 }

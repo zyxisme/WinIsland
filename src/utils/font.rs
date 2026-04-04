@@ -125,7 +125,22 @@ impl FontManager {
     pub fn draw_text_in_rect(&self, canvas: &Canvas, text: &str, x: f32, y: f32, w: f32, size: f32, bold: bool, paint: &Paint) {
         let font = self.get_font(size, bold);
         let (_, rect) = font.measure_str(text, None);
-        canvas.draw_str(text, (x + (w - rect.width()) / 2.0, y), &font, paint);
+        if rect.width() <= w {
+            canvas.draw_str(text, (x + (w - rect.width()) / 2.0, y), &font, paint);
+        } else {
+            let mut truncated = String::new();
+            let mut current_w = 0.0;
+            let (ellipsis_w, _) = font.measure_str("...", None);
+            let max_w = w - ellipsis_w;
+            for c in text.chars() {
+                let (cw, _) = font.measure_str(&c.to_string(), None);
+                if current_w + cw > max_w { break; }
+                current_w += cw;
+                truncated.push(c);
+            }
+            truncated.push_str("...");
+            canvas.draw_str(&truncated, (x, y), &font, paint);
+        }
     }
 
     pub fn draw_text_cached(&self, canvas: &Canvas, text: &str, pos: (f32, f32), size: f32, style: FontStyle, paint: &Paint, align_center: bool, max_w: f32) {

@@ -112,6 +112,19 @@ impl Default for App {
 }
 
 impl App {
+    fn get_target_monitor(window: &Window, monitor_index: i32) -> Option<winit::monitor::MonitorHandle> {
+        if monitor_index <= 0 {
+            return window.primary_monitor().or_else(|| window.current_monitor());
+        }
+        let monitors: Vec<_> = window.available_monitors().collect();
+        let idx = monitor_index as usize;
+        if idx < monitors.len() {
+            Some(monitors[idx].clone())
+        } else {
+            window.primary_monitor().or_else(|| window.current_monitor())
+        }
+    }
+
     fn enforce_topmost(window: &Window, win_x: i32, win_y: i32, os_w: u32, os_h: u32) {
         if let Ok(handle) = window.window_handle() {
             if let RawWindowHandle::Win32(raw) = handle.as_raw() {
@@ -164,7 +177,7 @@ impl ApplicationHandler for App {
             }
 
             self.window = Some(window.clone());
-            if let Some(monitor) = window.current_monitor() {
+            if let Some(monitor) = Self::get_target_monitor(&window, self.config.monitor_index) {
                 let mon_size = monitor.size();
                 let mon_pos = monitor.position();
                 self.last_mon_size = (mon_size.width, mon_size.height);
@@ -436,7 +449,7 @@ impl ApplicationHandler for App {
                         }
                     }
 
-                    if let Some(monitor) = window.current_monitor() {
+                    if let Some(monitor) = Self::get_target_monitor(window, self.config.monitor_index) {
                         let mon_size = monitor.size();
                         let mon_pos = monitor.position();
                         self.last_mon_size = (mon_size.width, mon_size.height);
@@ -447,9 +460,7 @@ impl ApplicationHandler for App {
                         self.win_y = top_y - (PADDING / 2.0) as i32 + self.config.position_y_offset;
                         window.set_outer_position(PhysicalPosition::new(self.win_x, self.win_y));
                     }
-                } else if let Some(monitor) = window.current_monitor() {
-                    // Even if config hasn't changed, check if monitor resolution/position changed
-                    // (e.g. after exiting a fullscreen game with a different resolution)
+                } else if let Some(monitor) = Self::get_target_monitor(window, self.config.monitor_index) {
                     let mon_size = monitor.size();
                     let mon_pos = monitor.position();
                     let cur_mon_size = (mon_size.width, mon_size.height);

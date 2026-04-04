@@ -31,6 +31,7 @@ const CONTENT_START_Y: f32 = 10.0;
 enum PopupKind {
     LyricsSource,
     Language,
+    Monitor,
 }
 
 struct PopupState {
@@ -46,10 +47,20 @@ impl PopupState {
     fn menu_rect(&self) -> Rect {
         let item_count = self.options.len() as f32;
         let menu_h = POPUP_MENU_PAD * 2.0 + item_count * POPUP_ITEM_H;
+        let fm = FontManager::global();
+        let mut max_text_w: f32 = self.button_rect.width();
+        for opt in &self.options {
+            let (w, _) = fm.measure(opt, 12.0, false);
+            let needed = w + 36.0;
+            if needed > max_text_w { max_text_w = needed; }
+        }
+        let menu_w = max_text_w;
+        let right_edge = self.button_rect.right;
+        let menu_x = right_edge - menu_w;
         Rect::from_xywh(
-            self.button_rect.left,
+            menu_x,
             self.button_rect.bottom + 2.0,
-            self.button_rect.width(),
+            menu_w,
             menu_h,
         )
     }
@@ -129,22 +140,34 @@ impl SettingsApp {
             SettingsItem::RowStepper { label: tr("expanded_height"), value: self.config.expanded_height.to_string(), enabled: true },
             SettingsItem::RowStepper { label: tr("position_x_offset"), value: self.config.position_x_offset.to_string(), enabled: true },
             SettingsItem::RowStepper { label: tr("position_y_offset"), value: self.config.position_y_offset.to_string(), enabled: true },
-            SettingsItem::GroupEnd,
-            SettingsItem::SectionHeader { label: tr("section_effects") },
-            SettingsItem::GroupStart,
-            SettingsItem::RowSwitch { label: tr("adaptive_border"), on: self.config.adaptive_border, enabled: true },
-            SettingsItem::RowSwitch { label: tr("motion_blur"), on: self.config.motion_blur, enabled: true },
-            SettingsItem::RowFontPicker {
-                label: tr("custom_font"),
-                btn_label: tr("font_select"),
-                reset_label: if self.config.custom_font_path.is_some() { Some(tr("font_reset")) } else { None },
-            },
-            SettingsItem::GroupEnd,
-            SettingsItem::SectionHeader { label: tr("section_behavior") },
-            SettingsItem::GroupStart,
-            SettingsItem::RowSwitch { label: tr("start_boot"), on: self.config.auto_start, enabled: true },
-            SettingsItem::RowSwitch { label: tr("auto_hide"), on: self.config.auto_hide, enabled: true },
         ];
+        {
+            let monitors = self.get_monitor_list();
+            let selected_idx = (self.config.monitor_index as usize).min(monitors.len().saturating_sub(1));
+            let options: Vec<(String, bool)> = monitors.iter().enumerate()
+                .map(|(i, name)| (name.clone(), i == selected_idx))
+                .collect();
+            items.push(SettingsItem::RowSourceSelect {
+                label: tr("monitor"),
+                options,
+                enabled: true,
+            });
+        }
+        items.push(SettingsItem::GroupEnd);
+        items.push(SettingsItem::SectionHeader { label: tr("section_effects") });
+        items.push(SettingsItem::GroupStart);
+        items.push(SettingsItem::RowSwitch { label: tr("adaptive_border"), on: self.config.adaptive_border, enabled: true });
+        items.push(SettingsItem::RowSwitch { label: tr("motion_blur"), on: self.config.motion_blur, enabled: true });
+        items.push(SettingsItem::RowFontPicker {
+            label: tr("custom_font"),
+            btn_label: tr("font_select"),
+            reset_label: if self.config.custom_font_path.is_some() { Some(tr("font_reset")) } else { None },
+        });
+        items.push(SettingsItem::GroupEnd);
+        items.push(SettingsItem::SectionHeader { label: tr("section_behavior") });
+        items.push(SettingsItem::GroupStart);
+        items.push(SettingsItem::RowSwitch { label: tr("start_boot"), on: self.config.auto_start, enabled: true });
+        items.push(SettingsItem::RowSwitch { label: tr("auto_hide"), on: self.config.auto_hide, enabled: true });
         if self.config.auto_hide {
             items.push(SettingsItem::RowStepper { label: tr("hide_delay"), value: format!("{:.0}", self.config.auto_hide_delay), enabled: true });
         }
@@ -238,6 +261,42 @@ impl SettingsApp {
             2 => self.build_about_items(),
             _ => vec![],
         }
+    }
+
+    fn get_monitor_list(&self) -> Vec<String> {
+        use windows::Win32::Graphics::Gdi::*;
+        let mut monitors: Vec<String> = Vec::new();
+        unsafe {
+            let mut idx = 0u32;
+            loop {
+                let mut dd: DISPLAY_DEVICEW = std::mem::zeroed();
+                dd.cb = std::mem::size_of::<DISPLAY_DEVICEW>() as u32;
+                if EnumDisplayDevicesW(None, idx, &mut dd, 0).as_bool() {
+                    if (dd.StateFlags & DISPLAY_DEVICE_ACTIVE) != 0 {
+                        let name = String::from_utf16_lossy(&dd.DeviceName).trim_end_matches('\0').to_string();
+                        let mut dm: DISPLAY_DEVICEW = std::mem::zeroed();
+                        dm.cb = std::mem::size_of::<DISPLAY_DEVICEW>() as u32;
+                        let label = if EnumDisplayDevicesW(
+                            windows::core::PCWSTR(dd.DeviceName.as_ptr()),
+                            0, &mut dm, 0
+                        ).as_bool() {
+                            let friendly = String::from_utf16_lossy(&dm.DeviceString).trim_end_matches('\0').to_string();
+                            if friendly.is_empty() { name.clone() } else { friendly }
+                        } else {
+                            name.clone()
+                        };
+                        monitors.push(label);
+                    }
+                    idx += 1;
+                } else {
+                    break;
+                }
+            }
+        }
+        if monitors.is_empty() {
+            monitors.push("Primary".to_string());
+        }
+        monitors
     }
 
     fn sync_switch_targets(&mut self) {
@@ -503,6 +562,9 @@ impl SettingsApp {
                                 self.config.language = value.clone();
                                 set_lang(&value);
                             }
+                            PopupKind::Monitor => {
+                                self.config.monitor_index = value.parse::<i32>().unwrap_or(0);
+                            }
                         }
                         save_config(&self.config);
                         break;
@@ -624,17 +686,33 @@ impl SettingsApp {
                 let btn_x = SIDEBAR_W + CONTENT_PADDING + content_w - GROUP_INNER_PAD - POPUP_BTN_W;
                 let btn_y = cy - POPUP_BTN_H / 2.0 - self.scroll_y;
 
-                let lang = current_lang();
-                self.popup = Some(PopupState {
-                    kind: PopupKind::Language,
-                    button_rect: Rect::from_xywh(btn_x, btn_y, POPUP_BTN_W, POPUP_BTN_H),
-                    options: vec!["English".to_string(), "中文".to_string()],
-                    values: vec!["en".to_string(), "zh".to_string()],
-                    selected_idx: if lang == "zh" { 1 } else { 0 },
-                    hover_idx: None,
-                });
-                self.anim.set_with_speed("popup_opacity", 1.0, 0.25);
-                if let Some(win) = &self.window { win.request_redraw(); }
+                if let Some(SettingsItem::RowSourceSelect { label, .. }) = items.get(idx) {
+                    if label == &tr("monitor") {
+                        let monitors = self.get_monitor_list();
+                        let selected_idx = (self.config.monitor_index as usize).min(monitors.len().saturating_sub(1));
+                        let values: Vec<String> = (0..monitors.len()).map(|i| i.to_string()).collect();
+                        self.popup = Some(PopupState {
+                            kind: PopupKind::Monitor,
+                            button_rect: Rect::from_xywh(btn_x, btn_y, POPUP_BTN_W, POPUP_BTN_H),
+                            options: monitors,
+                            values,
+                            selected_idx,
+                            hover_idx: None,
+                        });
+                    } else {
+                        let lang = current_lang();
+                        self.popup = Some(PopupState {
+                            kind: PopupKind::Language,
+                            button_rect: Rect::from_xywh(btn_x, btn_y, POPUP_BTN_W, POPUP_BTN_H),
+                            options: vec!["English".to_string(), "中文".to_string()],
+                            values: vec!["en".to_string(), "zh".to_string()],
+                            selected_idx: if lang == "zh" { 1 } else { 0 },
+                            hover_idx: None,
+                        });
+                    }
+                    self.anim.set_with_speed("popup_opacity", 1.0, 0.25);
+                    if let Some(win) = &self.window { win.request_redraw(); }
+                }
             }
             ClickResult::CenterLink(_) => {
                 self.config = AppConfig::default();
