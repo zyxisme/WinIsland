@@ -21,7 +21,7 @@ use crate::core::smtc::SmtcListener;
 use crate::core::audio::AudioProcessor;
 use crate::window::tray::{TrayAction, TrayManager};
 use crate::utils::icon::get_app_icon;
-use crate::ui::expanded::main_view::{get_progress_bar_rect, get_pause_btn_rect};
+use crate::ui::expanded::main_view::{get_progress_bar_rect, get_pause_btn_rect, get_prev_btn_rect, get_next_btn_rect};
 
 pub struct App {
     window: Option<Arc<Window>>,
@@ -285,6 +285,24 @@ impl ApplicationHandler for App {
                                     let cy = rel_y as f32;
                                     if music_on && cx >= bx && cx <= bx + bw && cy >= by && cy <= by + bh {
                                         self.smtc.request_toggle_play();
+                                        return;
+                                    }
+
+                                    let (px, py, pw, ph) = get_prev_btn_rect(
+                                        offset_x as f32, island_y as f32, w as f32, h as f32,
+                                        self.config.global_scale
+                                    );
+                                    if music_on && cx >= px && cx <= px + pw && cy >= py && cy <= py + ph {
+                                        self.smtc.request_prev();
+                                        return;
+                                    }
+
+                                    let (nx, ny, nw, nh) = get_next_btn_rect(
+                                        offset_x as f32, island_y as f32, w as f32, h as f32,
+                                        self.config.global_scale
+                                    );
+                                    if music_on && cx >= nx && cx <= nx + nw && cy >= ny && cy <= ny + nh {
+                                        self.smtc.request_next();
                                         return;
                                     }
 

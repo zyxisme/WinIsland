@@ -77,6 +77,8 @@ pub struct SmtcListener {
     allowed_apps: Arc<Mutex<Vec<String>>>,
     seek_request: Arc<Mutex<Option<u64>>>,
     toggle_request: Arc<AtomicBool>,
+    next_request: Arc<AtomicBool>,
+    prev_request: Arc<AtomicBool>,
 }
 
 impl SmtcListener {
@@ -89,6 +91,8 @@ impl SmtcListener {
             allowed_apps: Arc::new(Mutex::new(allowed)),
             seek_request: Arc::new(Mutex::new(None)),
             toggle_request: Arc::new(AtomicBool::new(false)),
+            next_request: Arc::new(AtomicBool::new(false)),
+            prev_request: Arc::new(AtomicBool::new(false)),
         };
         listener.init();
         listener
@@ -142,6 +146,14 @@ impl SmtcListener {
 
     pub fn request_toggle_play(&self) {
         self.toggle_request.store(true, Ordering::Relaxed);
+    }
+
+    pub fn request_next(&self) {
+        self.next_request.store(true, Ordering::Relaxed);
+    }
+
+    pub fn request_prev(&self) {
+        self.prev_request.store(true, Ordering::Relaxed);
     }
 
     fn auto_allow_new_apps(mgr: &GlobalSystemMediaTransportControlsSessionManager, allowed: &Arc<Mutex<Vec<String>>>) {
@@ -261,6 +273,8 @@ impl SmtcListener {
         let allowed_clone = self.allowed_apps.clone();
         let seek_clone = self.seek_request.clone();
         let toggle_clone = self.toggle_request.clone();
+        let next_clone = self.next_request.clone();
+        let prev_clone = self.prev_request.clone();
         std::thread::spawn(move || {
             let manager = match GlobalSystemMediaTransportControlsSessionManager::RequestAsync() {
                 Ok(op) => match op.get() {
@@ -337,6 +351,20 @@ impl SmtcListener {
                                 }
                             }
                         }
+                    }
+                }
+
+                if next_clone.swap(false, Ordering::Relaxed) {
+                    let apps = allowed_clone.lock().unwrap().clone();
+                    if let Some(session) = Self::get_target_session(&current_manager, &apps) {
+                        let _ = session.TrySkipNextAsync();
+                    }
+                }
+
+                if prev_clone.swap(false, Ordering::Relaxed) {
+                    let apps = allowed_clone.lock().unwrap().clone();
+                    if let Some(session) = Self::get_target_session(&current_manager, &apps) {
+                        let _ = session.TrySkipPreviousAsync();
                     }
                 }
 

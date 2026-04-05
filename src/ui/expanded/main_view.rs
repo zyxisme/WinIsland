@@ -4,7 +4,7 @@ use skia_safe::{
     gradient_shader, TileMode, Point
 };
 use crate::icons::arrows::draw_arrow_right;
-use crate::icons::controls::{draw_play_button, draw_pause_button};
+use crate::icons::controls::{draw_play_button, draw_pause_button, draw_next_button, draw_prev_button};
 use crate::core::smtc::MediaInfo;
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -22,9 +22,29 @@ pub fn get_pause_btn_rect(ox: f32, oy: f32, w: f32, _h: f32, scale: f32) -> (f32
     let img_size = 72.0 * scale;
     let img_y = oy + 24.0 * scale;
     let bar_y = img_y + img_size + 18.0 * scale;
-    let btn_cy = bar_y + 35.0 * scale;
+    let btn_cy = bar_y + 42.0 * scale;
     let hit = 40.0 * scale;
     let btn_cx = ox + w / 2.0;
+    (btn_cx - hit / 2.0, btn_cy - hit / 2.0, hit, hit)
+}
+
+pub fn get_prev_btn_rect(ox: f32, oy: f32, w: f32, _h: f32, scale: f32) -> (f32, f32, f32, f32) {
+    let img_size = 72.0 * scale;
+    let img_y = oy + 24.0 * scale;
+    let bar_y = img_y + img_size + 18.0 * scale;
+    let btn_cy = bar_y + 42.0 * scale;
+    let hit = 36.0 * scale;
+    let btn_cx = ox + w / 2.0 - 75.0 * scale;
+    (btn_cx - hit / 2.0, btn_cy - hit / 2.0, hit, hit)
+}
+
+pub fn get_next_btn_rect(ox: f32, oy: f32, w: f32, _h: f32, scale: f32) -> (f32, f32, f32, f32) {
+    let img_size = 72.0 * scale;
+    let img_y = oy + 24.0 * scale;
+    let bar_y = img_y + img_size + 18.0 * scale;
+    let btn_cy = bar_y + 42.0 * scale;
+    let hit = 36.0 * scale;
+    let btn_cx = ox + w / 2.0 + 75.0 * scale;
     (btn_cx - hit / 2.0, btn_cy - hit / 2.0, hit, hit)
 }
 
@@ -200,7 +220,10 @@ pub fn draw_main_page(canvas: &Canvas, ox: f32, oy: f32, w: f32, h: f32, alpha: 
         });
 
         let btn_cx = ox + w / 2.0;
-        let btn_cy = bar_center_y + bar_h / 2.0 + 35.0 * scale;
+        let btn_cy = bar_center_y + bar_h / 2.0 + 42.0 * scale;
+        let skip_gap = 75.0 * scale;
+
+        draw_prev_button(canvas, btn_cx - skip_gap, btn_cy, alpha, scale);
 
         if pause_t > 0.99 {
             draw_pause_button(canvas, btn_cx, btn_cy, alpha, scale);
@@ -218,6 +241,8 @@ pub fn draw_main_page(canvas: &Canvas, ox: f32, oy: f32, w: f32, h: f32, alpha: 
                 draw_play_button(canvas, btn_cx, btn_cy, play_alpha, scale);
             }
         }
+
+        draw_next_button(canvas, btn_cx + skip_gap, btn_cy, alpha, scale);
     }
 
     let viz_x_offset = 17.0 + (45.0 - 17.0) * expansion_progress;

@@ -37,3 +37,41 @@ pub fn draw_pause_button(canvas: &Canvas, cx: f32, cy: f32, alpha: u8, scale: f3
         canvas.restore();
     }
 }
+
+pub fn draw_next_button(canvas: &Canvas, cx: f32, cy: f32, alpha: u8, scale: f32) {
+    let mut paint = Paint::default();
+    paint.set_anti_alias(true);
+    paint.set_color(Color::from_argb(alpha, 255, 255, 255));
+    paint.set_style(skia_safe::paint::Style::Fill);
+
+    let path_data = "M12.053 3.212C11.729 2.898 11.288 2.7 10.8 2.7C9.806 2.7 9 3.507 9 4.501L9 9.001L9 13.501C9 14.495 9.806 15.3 10.8 15.3C11.288 15.3 11.73 15.105 12.053 14.788C14.434 12.474 18 9.001 18 9.001S14.434 5.527 12.053 3.212zM3.053 3.212C2.729 2.898 2.288 2.7 1.8 2.7C0.806 2.7 0 3.507 0 4.501L0 13.501C0 14.495 0.806 15.3 1.8 15.3C2.288 15.3 2.73 15.105 3.053 14.788C5.434 12.474 9 9.001 9 9.001S5.434 5.527 3.053 3.212z";
+
+    if let Some(path) = Path::from_svg(path_data) {
+        canvas.save();
+        canvas.translate((cx, cy));
+        let s = 2.4 * scale;
+        canvas.scale((s, s));
+        canvas.translate((-9.0, -9.0));
+        canvas.draw_path(&path, &paint);
+        canvas.restore();
+    }
+}
+
+pub fn draw_prev_button(canvas: &Canvas, cx: f32, cy: f32, alpha: u8, scale: f32) {
+    let mut paint = Paint::default();
+    paint.set_anti_alias(true);
+    paint.set_color(Color::from_argb(alpha, 255, 255, 255));
+    paint.set_style(skia_safe::paint::Style::Fill);
+
+    let path_data = "M12.053 3.212C11.729 2.898 11.288 2.7 10.8 2.7C9.806 2.7 9 3.507 9 4.501L9 9.001L9 13.501C9 14.495 9.806 15.3 10.8 15.3C11.288 15.3 11.73 15.105 12.053 14.788C14.434 12.474 18 9.001 18 9.001S14.434 5.527 12.053 3.212zM3.053 3.212C2.729 2.898 2.288 2.7 1.8 2.7C0.806 2.7 0 3.507 0 4.501L0 13.501C0 14.495 0.806 15.3 1.8 15.3C2.288 15.3 2.73 15.105 3.053 14.788C5.434 12.474 9 9.001 9 9.001S5.434 5.527 3.053 3.212z";
+
+    if let Some(path) = Path::from_svg(path_data) {
+        canvas.save();
+        canvas.translate((cx, cy));
+        let s = 2.4 * scale;
+        canvas.scale((-s, s));
+        canvas.translate((-9.0, -9.0));
+        canvas.draw_path(&path, &paint);
+        canvas.restore();
+    }
+}
