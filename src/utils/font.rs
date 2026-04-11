@@ -143,6 +143,46 @@ impl FontManager {
         }
     }
 
+    pub fn measure_text_cached(&self, text: &str, size: f32, style: FontStyle) -> f32 {
+        let cache_key = format!("measure-{}-{:?}-{}", text, style, size as i32);
+        TEXT_CACHE.with(|cache| {
+            let mut cache_mut = cache.borrow_mut();
+            if cache_mut.len() > 500 { cache_mut.clear(); }
+            if !cache_mut.contains_key(&cache_key) {
+                let mut current_w = 0.0;
+                let mut groups: Vec<(String, Typeface, bool)> = Vec::new();
+                let mut current_group = String::new();
+                let mut last_tf: Option<Typeface> = None;
+                let mut last_embolden = false;
+                for c in text.chars() {
+                    let (tf, embolden) = get_typeface_for_char(c, style);
+                    if let Some(ref ltf) = last_tf {
+                        if ltf.unique_id() != tf.unique_id() || last_embolden != embolden {
+                            groups.push((current_group.clone(), ltf.clone(), last_embolden));
+                            current_group.clear();
+                        }
+                    }
+                    last_tf = Some(tf);
+                    last_embolden = embolden;
+                    current_group.push(c);
+                }
+                if let Some(ltf) = last_tf { groups.push((current_group, ltf, last_embolden)); }
+
+                for (s, tf, embolden) in &groups {
+                    let mut font = Font::from_typeface(tf.clone(), size);
+                    if *embolden { font.set_embolden(true); }
+                    let (w, _) = font.measure_str(s, None);
+                    current_w += w;
+                }
+                
+                cache_mut.insert(cache_key.clone(), (current_w.to_string(), groups));
+                return current_w;
+            }
+            let (w_str, _) = cache_mut.get(&cache_key).unwrap();
+            w_str.parse::<f32>().unwrap_or(0.0)
+        })
+    }
+
     pub fn draw_text_cached(&self, canvas: &Canvas, text: &str, pos: (f32, f32), size: f32, style: FontStyle, paint: &Paint, align_center: bool, max_w: f32) {
         let cache_key = format!("{}-{}-{:?}-{}", text, max_w as i32, style, size as i32);
         TEXT_CACHE.with(|cache| {

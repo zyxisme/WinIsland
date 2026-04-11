@@ -16,9 +16,11 @@ pub struct MediaInfo {
     pub album: String,
     pub is_playing: bool,
     pub thumbnail: Option<Arc<Vec<u8>>>,
+    pub thumbnail_hash: u64,
     pub spectrum: [f32; 6],
     pub position_ms: u64,
     pub last_update: Instant,
+    pub last_thumbnail_fetch: Instant,
     pub lyrics: Option<Arc<Vec<LyricLine>>>,
     pub last_smtc_pos: u64,
     pub duration_secs: u64,
@@ -33,9 +35,11 @@ impl Default for MediaInfo {
             album: String::new(),
             is_playing: false,
             thumbnail: None,
+            thumbnail_hash: 0,
             spectrum: [0.0; 6],
             position_ms: 0,
             last_update: Instant::now(),
+            last_thumbnail_fetch: Instant::now() - Duration::from_secs(10), // fetch immediately
             lyrics: None,
             last_smtc_pos: 0,
             duration_secs: 0,
@@ -425,12 +429,18 @@ impl SmtcListener {
                 info.duration_ms = duration_ms_from_tl;
                 info.lyrics = None;
                 info.thumbnail = None;
+                info.thumbnail_hash = 0;
                 info.position_ms = smtc_pos;
                 info.last_smtc_pos = smtc_pos;
                 info.last_update = Instant::now();
+                info.last_thumbnail_fetch = Instant::now();
                 should_fetch_lyrics = true;
                 should_fetch_thumbnail = true;
             } else if info.is_playing != is_playing && info.thumbnail.is_none() && !new_title.is_empty() {
+                info.last_thumbnail_fetch = Instant::now();
+                should_fetch_thumbnail = true;
+            } else if !new_title.is_empty() && info.last_thumbnail_fetch.elapsed() >= Duration::from_secs(5) {
+                info.last_thumbnail_fetch = Instant::now();
                 should_fetch_thumbnail = true;
             }
             
@@ -492,9 +502,18 @@ impl SmtcListener {
                     })();
 
                     if let Ok(bytes) = res {
+                        use std::collections::hash_map::DefaultHasher;
+                        use std::hash::{Hash, Hasher};
+                        let mut hasher = DefaultHasher::new();
+                        bytes.hash(&mut hasher);
+                        let hash = hasher.finish();
+
                         if let Ok(mut info) = arc_clone.lock() {
                             if info.title == title_clone && info.artist == artist_clone {
-                                info.thumbnail = Some(Arc::new(bytes));
+                                if info.thumbnail_hash != hash {
+                                    info.thumbnail = Some(Arc::new(bytes));
+                                    info.thumbnail_hash = hash;
+                                }
                                 return;
                             }
                         }

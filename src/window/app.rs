@@ -21,7 +21,7 @@ use crate::core::smtc::SmtcListener;
 use crate::core::audio::AudioProcessor;
 use crate::window::tray::{TrayAction, TrayManager};
 use crate::utils::icon::get_app_icon;
-use crate::ui::expanded::main_view::{get_progress_bar_rect, get_pause_btn_rect, get_prev_btn_rect, get_next_btn_rect};
+use crate::ui::expanded::main_view::{get_progress_bar_rect, get_pause_btn_rect, get_prev_btn_rect, get_next_btn_rect, trigger_pause_click, trigger_prev_click, trigger_next_click, trigger_cover_flip, set_progress_hover};
 
 pub struct App {
     window: Option<Arc<Window>>,
@@ -284,6 +284,7 @@ impl ApplicationHandler for App {
                                     let cx = rel_x as f32 - (page_shift as f32);
                                     let cy = rel_y as f32;
                                     if music_on && cx >= bx && cx <= bx + bw && cy >= by && cy <= by + bh {
+                                        trigger_pause_click(media.is_playing);
                                         self.smtc.request_toggle_play();
                                         return;
                                     }
@@ -293,6 +294,8 @@ impl ApplicationHandler for App {
                                         self.config.global_scale
                                     );
                                     if music_on && cx >= px && cx <= px + pw && cy >= py && cy <= py + ph {
+                                        trigger_cover_flip();
+                                        trigger_prev_click();
                                         self.smtc.request_prev();
                                         return;
                                     }
@@ -302,6 +305,8 @@ impl ApplicationHandler for App {
                                         self.config.global_scale
                                     );
                                     if music_on && cx >= nx && cx <= nx + nw && cy >= ny && cy <= ny + nh {
+                                        trigger_cover_flip();
+                                        trigger_next_click();
                                         self.smtc.request_next();
                                         return;
                                     }
@@ -632,6 +637,27 @@ impl ApplicationHandler for App {
             } else if self.seeking_progress {
                 self.seeking_progress = false;
             }
+
+            let progress_hover_active = if self.seeking_progress {
+                true
+            } else if self.expanded && (self.spring_view.value as f64) < 0.5 {
+                if let Some((bar_left, bar_right, bar_top, bar_hit_h)) = get_progress_bar_rect(
+                    offset_x as f32, island_y as f32,
+                    self.spring_w.value, &media, music_active, self.config.global_scale
+                ) {
+                    let page_shift = self.spring_view.value * self.spring_w.value;
+                    let cx = rel_x as f32 - page_shift;
+                    let cy = rel_y as f32;
+                    let margin = 4.0 * self.config.global_scale;
+                    cx >= bar_left - margin && cx <= bar_right + margin
+                        && cy >= bar_top - margin && cy <= bar_top + bar_hit_h + margin
+                } else {
+                    false
+                }
+            } else {
+                false
+            };
+            set_progress_hover(progress_hover_active);
 
             if self.is_dragging {
                 let diff_y = self.drag_start_py - py;

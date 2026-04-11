@@ -82,7 +82,7 @@ pub fn draw_island(
 
         canvas.save();
         canvas.translate((-page_shift, 0.0));
-        draw_main_page(canvas, offset_x, offset_y, current_w, current_h, alpha, media, music_active, view_offset, global_scale, expansion_progress, viz_h_scale * global_scale);
+        draw_main_page(canvas, offset_x, offset_y, current_w, current_h, alpha, media, music_active, view_offset, global_scale, expansion_progress, viz_h_scale * global_scale, use_blur);
         canvas.restore();
 
         canvas.save();
